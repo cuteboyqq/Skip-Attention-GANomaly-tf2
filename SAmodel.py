@@ -35,14 +35,14 @@ class UNetDown(tf.keras.layers.Layer):
         return x
         
 class UNetUp(tf.keras.layers.Layer):
-    def __init__(self,skip_input, filters, f_size=4, dropout_rate=0):
+    def __init__(self, filters, f_size=4, dropout_rate=0):
         """Layers used during upsampling"""
         self.upsample = layers.UpSampling2D(size=2)
         self.conv = layers.Conv2D(filters, kernel_size=f_size, strides=1, padding='same', activation='relu')
         self.dropout_rate = dropout_rate
         if dropout_rate:
             self.drop = layers.Dropout(dropout_rate)
-        self.norm = layers.InstanceNormalization()
+        self.norm = layers.BatchNormalization()
         self.concat = layers.Concatenate()
     def call(self,x,skip_input):
         x = self.upsample(x)
@@ -123,16 +123,21 @@ class SA_Decoder(tf.keras.layers.Layer):
         self.channels = nc
         self.conv = layers.Conv2D(self.channels, kernel_size=4, strides=1,
                             padding='same', activation='tanh')
-        
-        
+        self.gf = ngf
+        self.up1 = UNetUp(self.gf*8)
+        self.up2 = UNetUp(self.gf*8)
+        self.up3 = UNetUp(self.gf*8)
+        self.up4 = UNetUp(self.gf*4)
+        self.up5 = UNetUp(self.gf*2)
+        self.up6 = UNetUp(self.gf)
     def call(self,x,d):
         # Upsampling
-        u1 = UNetUp(x, d[5], self.gf*8)
-        u2 = UNetUp(u1, d[4], self.gf*8)
-        u3 = UNetUp(u2, d[3], self.gf*8)
-        u4 = UNetUp(u3, d[2], self.gf*4)
-        u5 = UNetUp(u4, d[1], self.gf*2)
-        u6 = UNetUp(u5, d[0], self.gf)
+        u1 = self.up1(x, d[5])
+        u2 = self.up2(u1, d[4])
+        u3 = self.up3(u2, d[3])
+        u4 = self.up4(u3, d[2])
+        u5 = self.up5(u4, d[1])
+        u6 = self.up6(u5, d[0])
         u7 = self.upsample(u6)
         gen_img = self.conv(u7)
         
