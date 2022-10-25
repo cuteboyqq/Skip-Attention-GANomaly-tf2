@@ -6,7 +6,7 @@ import time
 import numpy as np
 import cv2
 from model import GANomaly
-
+from SAmodel import Skip_Attention_GANomaly
 from absl import app
 from absl import flags
 from absl import logging
@@ -14,13 +14,13 @@ from absl import logging
 FLAGS = flags.FLAGS
 flags.DEFINE_integer("shuffle_buffer_size", 10000,
                      "buffer size for pseudo shuffle")
-flags.DEFINE_integer("batch_size", 64, "batch_size")
-flags.DEFINE_integer("isize", 32, "input size")
+flags.DEFINE_integer("batch_size", 32, "batch_size")
+flags.DEFINE_integer("isize", 128, "input size")
 flags.DEFINE_string("ckpt_dir", 'ckpt', "checkpoint folder")
 flags.DEFINE_integer("nz", 100, "latent dims")
 flags.DEFINE_integer("nc", 3, "input channels")
-flags.DEFINE_integer("ndf", 64, "number of discriminator's filters")
-flags.DEFINE_integer("ngf", 64, "number of generator's filters")
+flags.DEFINE_integer("ndf", 32, "number of discriminator's filters")
+flags.DEFINE_integer("ngf", 32, "number of generator's filters")
 flags.DEFINE_integer("extralayers", 0, "extralayers for both G and D")
 flags.DEFINE_list("encdims", None, "Layer dimensions of the encoder and in reverse of the decoder."
                                    "If given, dense encoder and decoders are used.")
@@ -30,11 +30,11 @@ flags.DEFINE_float("w_adv", 1., "Adversarial loss weight")
 flags.DEFINE_float("w_con", 50., "Reconstruction loss weight")
 flags.DEFINE_float("w_enc", 1., "Encoder loss weight")
 flags.DEFINE_float("beta1", 0.5, "beta1 for Adam optimizer")
-flags.DEFINE_string("dataset", r'/home/ali/GitHub_Code/YOLO/YOLOV5-old/runs/detect/f_384_2min/crops_1cls', "name of dataset")
+flags.DEFINE_string("dataset", r'C:\factory_data\2022-08-26\f_384_2min\crops_1cls', "name of dataset")
 #flags.DEFINE_string("dataset", 'cifar10', "name of dataset")
-flags.DEFINE_string("dataset_test", r'/home/ali/GitHub_Code/YOLO/YOLOV5-old/runs/detect/f_384_2min/crops_2cls', "name of dataset")
-flags.DEFINE_string("dataset_infer", r'/home/ali/GitHub_Code/YOLO/YOLOV5-old/runs/detect/f_384_2min/crops_1cls', "name of dataset")
-flags.DEFINE_string("dataset_infer_abnormal", r'/home/ali/GitHub_Code/YOLO/YOLOV5-old/runs/detect/f_384_2min/defect_aug', "name of dataset")
+flags.DEFINE_string("dataset_test", r'C:\factory_data\2022-08-26\f_384_2min\crops_2cls', "name of dataset")
+flags.DEFINE_string("dataset_infer", r'C:\factory_data\2022-08-26\f_384_2min\crops_1cls', "name of dataset")
+flags.DEFINE_string("dataset_infer_abnormal", r'C:\factory_data\2022-08-26\f_384_2min\crops_noline', "name of dataset")
 DATASETS = ['mnist', 'cifar10']
 '''
 flags.register_validator('dataset',
@@ -217,26 +217,31 @@ def main(_):
           batch_size=batch_size_)
     
         infer_dataset_abnormal = infer_dataset_abnormal.map(process)
-    
+    '''
     ganomaly = GANomaly(opt,
                         train_dataset,
                         valid_dataset=None,
                         test_dataset=test_dataset)
+    '''
+    sa_ganomaly = Skip_Attention_GANomaly(opt,
+                                            train_dataset,
+                                            valid_dataset=None,
+                                            test_dataset=test_dataset)
     if TRAIN:
         # training
-        ganomaly.fit(opt.niter)
+        sa_ganomaly.fit(opt.niter)
     
         # evaluating
-        ganomaly.evaluate_best(test_dataset)
+        sa_ganomaly.evaluate_best(test_dataset)
     else:
         if show_img:
             SHOW_MAX_NUM = 5
         else:
             SHOW_MAX_NUM = 6000
-        positive_loss = ganomaly.infer(infer_dataset,SHOW_MAX_NUM,show_img,'normal')
-        defeat_loss = ganomaly.infer(infer_dataset_abnormal,SHOW_MAX_NUM,show_img,'abnormal')
+        positive_loss = sa_ganomaly.infer(infer_dataset,SHOW_MAX_NUM,show_img,'normal')
+        defeat_loss = sa_ganomaly.infer(infer_dataset_abnormal,SHOW_MAX_NUM,show_img,'abnormal')
         if not show_img:
-            ganomaly.plot_loss_distribution( SHOW_MAX_NUM,positive_loss,defeat_loss)
+            sa_ganomaly.plot_loss_distribution( SHOW_MAX_NUM,positive_loss,defeat_loss)
     #print(loss_list)
     #print(loss_abnormal_list)
 if __name__ == '__main__':
