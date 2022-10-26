@@ -28,7 +28,7 @@ class UNetDown(tf.keras.layers.Layer):
         self.conv = layers.Conv2D(filters, kernel_size=f_size, strides=2, padding='same')
         self.relu = layers.LeakyReLU(alpha=0.2)
         self.normalize = normalize
-        self.norm = layers.BatchNormalization()
+        self.norm = layers.BatchNormalization(epsilon=1e-05, momentum=0.9)
     def call(self,x):
         x = self.conv(x)
         x = self.relu(x)
@@ -44,12 +44,13 @@ class UNetUp(tf.keras.layers.Layer):
         self.dropout_rate = dropout_rate
         if dropout_rate:
             self.drop = layers.Dropout(dropout_rate)
-        self.norm = layers.BatchNormalization()
+        self.norm = layers.BatchNormalization(epsilon=1e-05, momentum=0.9)
         self.concat = layers.Concatenate()
     def call(self,x,skip_input):
         x = self.upsample(x)
         x = self.conv(x)
         x = self.drop(x) if self.dropout_rate else x
+        x = self.norm(x)
         x = self.concat([x,skip_input])
         return x
     
