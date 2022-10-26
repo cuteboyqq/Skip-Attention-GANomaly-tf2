@@ -8,6 +8,7 @@ import metrics
 from absl import logging
 import matplotlib.pyplot as plt
 import os
+from Attention import ChannelAttention,SpatialAttention
 #==============================================
 '''
 from keras.datasets import mnist
@@ -92,6 +93,22 @@ class SA_Encoder(tf.keras.layers.Layer):
         self.down5 = UNetDown(self.gf*8)
         #self.down6 = UNetDown(self.gf*8)
         #self.down7 = UNetDown(self.gf*8)
+        self.ca1 = ChannelAttention(self.gf)
+        self.sa1 = SpatialAttention()
+        
+        self.ca2 = ChannelAttention(self.gf*2)
+        self.sa2 = SpatialAttention()
+        
+        self.ca3 = ChannelAttention(self.gf*4)
+        self.sa3 = SpatialAttention()
+        
+        self.ca4 = ChannelAttention(self.gf*8)
+        self.sa4 = SpatialAttention()
+        
+        
+        self.ca5 = ChannelAttention(self.gf*8)
+        self.sa5 = SpatialAttention()
+        
     def call(self, x):
         # Image input
         #d0 = layers.Input(shape=self.img_shape)
@@ -109,7 +126,23 @@ class SA_Encoder(tf.keras.layers.Layer):
         #print('d5 {}'.format(d5.shape))
         #d6 = self.down6(d5)
         #d7 = self.down7(d6)
-        d = [d1,d2,d3,d4,d5]
+        
+        d1 = self.ca1(d1) * d1
+        _d1 = self.sa1(d1) * d1
+        
+        d2 = self.ca2(d2) * d2
+        _d2 = self.sa2(d2) * d2
+        
+        d3 = self.ca3(d3) * d3
+        _d3 = self.sa3(d3) * d3
+        
+        d4 = self.ca4(d4) * d4
+        _d4 = self.sa4(d4) * d4
+        
+        d5 = self.ca4(d5) * d5
+        _d5 = self.sa4(d5) * d5
+        
+        d = [_d1,_d2,_d3,_d4,_d5]
         last_features = d4
         out = self.out_conv(last_features)
         #print('out {}'.format(out.shape))
