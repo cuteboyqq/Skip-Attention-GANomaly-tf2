@@ -1,4 +1,4 @@
-### Skip-Attension-GANomaly-Pytorch
+### Skip-Attension-GANomaly-tensorflow2
 [(Back to top)](#table-of-contents)
 
 Generator +  Discriminator model 
