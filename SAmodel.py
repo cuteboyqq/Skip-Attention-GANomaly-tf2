@@ -81,14 +81,14 @@ class SA_Encoder(tf.keras.layers.Layer):
         self.output_features = output_features
         self.out_conv = layers.Conv2D(filters=nz,
                                       kernel_size=4,
-                                      strides=2,
-                                      padding='same')
+                                      strides=2
+                                      )#padding='same'
         
         self.down1 = UNetDown(self.gf, normalize=False)
         self.down2 = UNetDown(self.gf*2)
         self.down3 = UNetDown(self.gf*4)
         self.down4 = UNetDown(self.gf*8)
-        #self.down5 = UNetDown(self.gf*8)
+        self.down5 = UNetDown(self.gf*8)
         #self.down6 = UNetDown(self.gf*8)
         #self.down7 = UNetDown(self.gf*8)
     def call(self, x):
@@ -97,20 +97,21 @@ class SA_Encoder(tf.keras.layers.Layer):
         #print('d0 {}'.format(d0.shape))
         # Downsampling
         d1 = self.down1(x)
-        print('d1 {}'.format(d1.shape))
+        #print('d1 {}'.format(d1.shape))
         d2 = self.down2(d1)
-        print('d2 {}'.format(d2.shape))
+        #print('d2 {}'.format(d2.shape))
         d3 = self.down3(d2)
-        print('d3 {}'.format(d3.shape))
+        #print('d3 {}'.format(d3.shape))
         d4 = self.down4(d3)
-        print('d4 {}'.format(d4.shape))
-        #d5 = self.down5(d4)
+        #print('d4 {}'.format(d4.shape))
+        d5 = self.down5(d4)
+        #print('d5 {}'.format(d5.shape))
         #d6 = self.down6(d5)
         #d7 = self.down7(d6)
-        d = [d1,d2,d3,d4]
+        d = [d1,d2,d3,d4,d5]
         last_features = d4
         out = self.out_conv(last_features)
-        print('out {}'.format(out.shape))
+        #print('out {}'.format(out.shape))
         if self.output_features:
             return out, last_features
         else:
@@ -132,28 +133,30 @@ class SA_Decoder(tf.keras.layers.Layer):
                             padding='same', activation='tanh')
         self.gf = ngf
         #self.up1 = UNetUp(self.gf*8)
-        #self.up2 = UNetUp(self.gf*8)
         self.up1 = UNetUp(self.gf*8)
-        self.up2 = UNetUp(self.gf*4)
-        self.up3 = UNetUp(self.gf*2)
-        self.up4 = UNetUp(self.gf)
+        self.up2 = UNetUp(self.gf*8)
+        self.up3 = UNetUp(self.gf*4)
+        self.up4 = UNetUp(self.gf*2)
+        self.up5 = UNetUp(self.gf)
     def call(self,x,d):
         # Upsampling
-        print('x {}'.format(x.shape))
+        #print('x {}'.format(x.shape))
         #u1 = self.up1(x, d[5])
         #u2 = self.up2(u1, d[4])
-        u1 = self.up1(x, d[3])
-        print('u1 {}'.format(u1.shape))
-        u2 = self.up2(u1, d[2])
-        print('u2 {}'.format(u2.shape))
-        u3 = self.up3(u2, d[1])
-        print('u3 {}'.format(u3.shape))
-        u4 = self.up4(u3, d[0])
-        print('u4 {}'.format(u4.shape))
-        u5 = self.upsample(u4)
-        print('u5 {}'.format(u5.shape))
-        gen_img = self.conv(u5)
-        
+        u1 = self.up1(x, d[4])
+        #print('u1 {}'.format(u1.shape))
+        u2 = self.up2(u1, d[3])
+        #print('u2 {}'.format(u2.shape))
+        u3 = self.up3(u2, d[2])
+        #print('u3 {}'.format(u3.shape))
+        u4 = self.up4(u3, d[1])
+        #print('u4 {}'.format(u4.shape))
+        u5 = self.up5(u4, d[0])
+        #print('u5 {}'.format(u5.shape))
+        u6 = self.upsample(u5)
+        #print('u6 {}'.format(u6.shape))
+        gen_img = self.conv(u6)
+        #print('gen_img {}'.format(gen_img.shape))
         return gen_img
     
 class SA_NetG(tf.keras.Model):

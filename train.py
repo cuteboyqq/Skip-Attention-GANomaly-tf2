@@ -15,7 +15,7 @@ FLAGS = flags.FLAGS
 flags.DEFINE_integer("shuffle_buffer_size", 10000,
                      "buffer size for pseudo shuffle")
 flags.DEFINE_integer("batch_size", 32, "batch_size")
-flags.DEFINE_integer("isize", 128, "input size")
+flags.DEFINE_integer("isize", 64, "input size")
 flags.DEFINE_string("ckpt_dir", 'ckpt', "checkpoint folder")
 flags.DEFINE_integer("nz", 100, "latent dims")
 flags.DEFINE_integer("nc", 3, "input channels")
@@ -30,11 +30,11 @@ flags.DEFINE_float("w_adv", 1., "Adversarial loss weight")
 flags.DEFINE_float("w_con", 50., "Reconstruction loss weight")
 flags.DEFINE_float("w_enc", 1., "Encoder loss weight")
 flags.DEFINE_float("beta1", 0.5, "beta1 for Adam optimizer")
-flags.DEFINE_string("dataset", r'C:\factory_data\2022-08-26\f_384_2min\crops_1cls', "name of dataset")
+flags.DEFINE_string("dataset", r'/home/ali/GitHub_Code/YOLO/YOLOV5-old/runs/detect/f_384_2min/crops_1cls', "name of dataset")
 #flags.DEFINE_string("dataset", 'cifar10', "name of dataset")
-flags.DEFINE_string("dataset_test", r'C:\factory_data\2022-08-26\f_384_2min\crops_2cls', "name of dataset")
-flags.DEFINE_string("dataset_infer", r'C:\factory_data\2022-08-26\f_384_2min\crops_1cls', "name of dataset")
-flags.DEFINE_string("dataset_infer_abnormal", r'C:\factory_data\2022-08-26\f_384_2min\crops_noline', "name of dataset")
+flags.DEFINE_string("dataset_test", r'/home/ali/GitHub_Code/YOLO/YOLOV5-old/runs/detect/f_384_2min/crops_2cls', "name of dataset")
+flags.DEFINE_string("dataset_infer", r'/home/ali/GitHub_Code/YOLO/YOLOV5-old/runs/detect/f_384_2min/crops_1cls', "name of dataset")
+flags.DEFINE_string("dataset_infer_abnormal", r'/home/ali/GitHub_Code/YOLO/YOLOV5-old/runs/detect/f_384_2min/defect_aug', "name of dataset")
 DATASETS = ['mnist', 'cifar10']
 '''
 flags.register_validator('dataset',
@@ -58,7 +58,7 @@ def process(image,label):
 
 def main(_):
     show_img = False
-    TRAIN = False
+    TRAIN = True
     opt = FLAGS
     # logging
     logging.set_verbosity(logging.INFO)
