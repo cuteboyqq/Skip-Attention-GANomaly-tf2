@@ -14,7 +14,7 @@ from absl import logging
 FLAGS = flags.FLAGS
 flags.DEFINE_integer("shuffle_buffer_size", 10000,
                      "buffer size for pseudo shuffle")
-flags.DEFINE_integer("batch_size", 32, "batch_size")
+flags.DEFINE_integer("batch_size", 16, "batch_size")
 flags.DEFINE_integer("isize", 64, "input size")
 flags.DEFINE_string("ckpt_dir", 'ckpt', "checkpoint folder")
 flags.DEFINE_integer("nz", 100, "latent dims")

@@ -8,7 +8,7 @@ import metrics
 from absl import logging
 import matplotlib.pyplot as plt
 import os
-from Attention import ChannelAttention,SpatialAttention
+#from Attention import ChannelAttention,SpatialAttention
 #==============================================
 '''
 from keras.datasets import mnist
@@ -21,6 +21,59 @@ from keras.models import Sequential, Model
 from keras.optimizers import Adam
 '''
 #========class use tensorflow.keras.layers======================================================================
+import tensorflow.keras as keras
+from tensorflow.keras import layers, Sequential, regularizers
+#============================================================================================
+def regularized_padded_conv(*args, **kwargs):
+    """
+    定义一个3x3卷积！kernel_initializer='he_normal','glorot_normal'
+    :param args:
+    :param kwargs:
+    :return:
+    """
+    return layers.Conv2D(*args, **kwargs, padding='same', use_bias=False, kernel_initializer='he_normal',
+                         kernel_regularizer=regularizers.l2(5e-4))
+
+
+class ChannelAttention(layers.Layer):
+    def __init__(self, in_planes, ratio=16):
+        super(ChannelAttention, self).__init__()
+        self.avg = layers.GlobalAveragePooling2D()
+        self.max = layers.GlobalMaxPooling2D()
+        self.conv1 = layers.Conv2D(in_planes // ratio, kernel_size=1, strides=1, padding='same',
+                                   kernel_regularizer=regularizers.l2(5e-4),
+                                   use_bias=True, activation=tf.nn.relu)
+        self.conv2 = layers.Conv2D(in_planes, kernel_size=1, strides=1, padding='same',
+                                   kernel_regularizer=regularizers.l2(5e-4),
+                                   use_bias=True)
+
+    def call(self, inputs):
+        avg = self.avg(inputs)
+        max = self.max(inputs)
+        avg = layers.Reshape((1, 1, avg.shape[1]))(avg)  # shape (None, 1, 1 feature)
+        max = layers.Reshape((1, 1, max.shape[1]))(max)  # shape (None, 1, 1 feature)
+        avg_out = self.conv2(self.conv1(avg))
+        max_out = self.conv2(self.conv1(max))
+        out = avg_out + max_out
+        out = tf.nn.sigmoid(out)
+
+        return out
+
+
+class SpatialAttention(layers.Layer):
+    def __init__(self, kernel_size=7):
+        super(SpatialAttention, self).__init__()
+        self.conv1 = regularized_padded_conv(1, kernel_size=kernel_size, strides=1, activation=tf.nn.sigmoid)
+
+    def call(self, inputs):
+        avg_out = tf.reduce_mean(inputs, axis=3)
+        max_out = tf.reduce_max(inputs, axis=3)
+        out = tf.stack([avg_out, max_out], axis=3)  # 创建一个维度,拼接到一起concat。
+        out = self.conv1(out)
+
+        return out
+#============================================================================================
+
 
 class UNetDown(tf.keras.layers.Layer):
     def __init__(self, filters, f_size=4, normalize=True):
@@ -32,26 +85,34 @@ class UNetDown(tf.keras.layers.Layer):
         self.norm = layers.BatchNormalization(epsilon=1e-05, momentum=0.9)
     def call(self,x):
         x = self.conv(x)
-        x = self.relu(x)
         x = self.norm(x) if self.normalize else x
+        x = self.relu(x)
         return x
         
 class UNetUp(tf.keras.layers.Layer):
-    def __init__(self, filters, f_size=4, dropout_rate=0):
+    def __init__(self, out_size, dropout_rate=0):
         super(UNetUp, self).__init__()
         """Layers used during upsampling"""
+        self.upconv = layers.Conv2DTranspose(out_size, 4, 2, padding='same')
         self.upsample = layers.UpSampling2D(size=2)
-        self.conv = layers.Conv2D(filters, kernel_size=f_size, strides=1, padding='same', activation='relu')
+        #self.conv = layers.Conv2D(filters, kernel_size=f_size, strides=1, padding='same', activation='relu')
+        self.relu = layers.LeakyReLU(alpha=0.2)
         self.dropout_rate = dropout_rate
         if dropout_rate:
             self.drop = layers.Dropout(dropout_rate)
         self.norm = layers.BatchNormalization(epsilon=1e-05, momentum=0.9)
         self.concat = layers.Concatenate()
     def call(self,x,skip_input):
-        x = self.upsample(x)
-        x = self.conv(x)
-        x = self.drop(x) if self.dropout_rate else x
+        #print('x {}'.format(x.shape))
+        x = self.upconv(x)
+        #print('upconv {}'.format(x.shape))
         x = self.norm(x)
+        #print('norm {}'.format(x.shape))
+        x = self.relu(x)
+        #print('relu {}'.format(x.shape))
+        #x = self.conv(x)
+        x = self.drop(x) if self.dropout_rate else x
+        
         x = self.concat([x,skip_input])
         return x
     
@@ -83,7 +144,8 @@ class SA_Encoder(tf.keras.layers.Layer):
         self.output_features = output_features
         self.out_conv = layers.Conv2D(filters=nz,
                                       kernel_size=4,
-                                      strides=2
+                                      strides=2,
+                                      padding='valid'
                                       )#padding='same'
         
         self.down1 = UNetDown(self.gf, normalize=False)
@@ -121,8 +183,12 @@ class SA_Encoder(tf.keras.layers.Layer):
         d3 = self.down3(d2)
         #print('d3 {}'.format(d3.shape))
         d4 = self.down4(d3)
+        last_features = d4
+        #print('last_features {}'.format(last_features.shape))
         #print('d4 {}'.format(d4.shape))
         d5 = self.down5(d4)
+        #print('d5 {}'.format(d5.shape))
+        
         #print('d5 {}'.format(d5.shape))
         #d6 = self.down6(d5)
         #d7 = self.down7(d6)
@@ -143,7 +209,7 @@ class SA_Encoder(tf.keras.layers.Layer):
         _d5 = self.sa4(d5) * d5
         
         d = [_d1,_d2,_d3,_d4,_d5]
-        last_features = d4
+        
         out = self.out_conv(last_features)
         #print('out {}'.format(out.shape))
         if self.output_features:
@@ -161,27 +227,41 @@ class SA_Decoder(tf.keras.layers.Layer):
             ngf(int): num of Generator(Decoder) filters
         """
         super(SA_Decoder, self).__init__()
+        self.con1 = layers.Conv2D(256, kernel_size=4, strides=1, padding='same', activation='relu')
         self.upsample = layers.UpSampling2D(size=2)
+        self.upconv = layers.Conv2DTranspose(256,4,strides=2,padding='valid')
         self.channels = nc
         self.conv = layers.Conv2D(self.channels, kernel_size=4, strides=1,
                             padding='same', activation='tanh')
         self.gf = ngf
         #self.up1 = UNetUp(self.gf*8)
-        self.up1 = UNetUp(self.gf*8)
-        self.up2 = UNetUp(self.gf*8)
+        #self.up1 = UNetUp(self.gf*8)
+        #self.up2 = UNetUp(self.gf*8)
         self.up3 = UNetUp(self.gf*4)
         self.up4 = UNetUp(self.gf*2)
         self.up5 = UNetUp(self.gf)
+        
+        self.tanh = tf.keras.activations.tanh
     def call(self,x,d):
         # Upsampling
+        x = self.upconv(x)
+        #x = self.upsample(x)
+        #x = self.upsample(x)
         #print('x {}'.format(x.shape))
         #u1 = self.up1(x, d[5])
         #u2 = self.up2(u1, d[4])
-        u1 = self.up1(x, d[4])
+        #c1 = self.con1(x)
+        #u0 = self.upsample(c1)
+        #print('c1 {}'.format(c1.shape))
+        #print('u0 {}'.format(u0.shape))
+        #print('d[4] {}'.format(d[4].shape))
+        #u1 = self.up1(x, d[4])
         #print('u1 {}'.format(u1.shape))
-        u2 = self.up2(u1, d[3])
+        #print('d[3] {}'.format(d[3].shape))
+        #u2 = self.up2(u1, d[3])
         #print('u2 {}'.format(u2.shape))
-        u3 = self.up3(u2, d[2])
+        #print('d[2] {}'.format(d[2].shape))
+        u3 = self.up3(x, d[2])
         #print('u3 {}'.format(u3.shape))
         u4 = self.up4(u3, d[1])
         #print('u4 {}'.format(u4.shape))
@@ -190,6 +270,8 @@ class SA_Decoder(tf.keras.layers.Layer):
         u6 = self.upsample(u5)
         #print('u6 {}'.format(u6.shape))
         gen_img = self.conv(u6)
+        
+        gen_img = self.tanh(gen_img)
         #print('gen_img {}'.format(gen_img.shape))
         return gen_img
     
