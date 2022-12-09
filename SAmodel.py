@@ -156,10 +156,10 @@ class SA_Encoder(tf.keras.layers.Layer):
         #d7 = self.down7(d6)
         
         d1 = self.ca1(d1) * d1
-        _d1 = self.sa1(d1) * d1
+        _d1 = self.sa1(d1) * d1 #d1 :16x16
         
         d2 = self.ca2(d2) * d2
-        _d2 = self.sa2(d2) * d2
+        _d2 = self.sa2(d2) * d2 #d2 :8x8
         
         d3 = self.ca3(d3) * d3
         _d3 = self.sa3(d3) * d3
@@ -200,6 +200,12 @@ class SA_Decoder(tf.keras.layers.Layer):
                                   padding='same',
                                   use_bias=False)
         
+        self.conv_tr2 = layers.Conv2D(self.gf,
+                                  kernel_size=4,
+                                  strides=1,
+                                  padding='same',
+                                  use_bias=False)
+        
         self.upconv = layers.Conv2DTranspose(self.gf*4,4,strides=2,padding='valid')
         self.channels = nc
         self.conv = layers.Conv2D(self.channels, kernel_size=4, strides=1,
@@ -233,14 +239,16 @@ class SA_Decoder(tf.keras.layers.Layer):
         #u2 = self.up2(u1, d[3])
         #print('u2 {}'.format(u2.shape))
         #print('d[2] {}'.format(d[2].shape))
-        u3 = self.up3(x, d[1]) # u3:8x8
+        u3 = self.up4(x, d[1]) # u3:8x8
         #print('u3 {}'.format(u3.shape))
-        u4 = self.up4(u3, d[0]) # u4 :16x16
+        u4 = self.up5(u3, d[0]) # u4 :16x16
         #print('u4 {}'.format(u4.shape))
         #u5 = self.up5(u4, d[0])
         #print('u5 {}'.format(u5.shape))
         u5 = self.upsample(u4) # u5:32x32
         #print('u6 {}'.format(u6.shape))
+        u5 = self.conv_tr2(x) # u5:32x32
+        
         gen_img = self.conv(u5) #gen_img:32x32x3
         
         #gen_img = self.tanh(gen_img)
