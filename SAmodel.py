@@ -33,9 +33,9 @@ class UNetDown(tf.keras.layers.Layer):
         super(UNetDown, self).__init__()
         """Layers used during downsampling"""
         self.conv = layers.Conv2D(filters, kernel_size=f_size, strides=2, padding='same')
-        self.relu = layers.LeakyReLU() #alpha=0.2
+        self.relu = layers.LeakyReLU(alpha=0.2) #alpha=0.2
         self.normalize = normalize
-        self.norm = layers.BatchNormalization(epsilon=1e-03, momentum=0.9) #epsilon=1e-05, momentum=0.9
+        self.norm = layers.BatchNormalization(epsilon=1e-05, momentum=0.9) #epsilon=1e-05, momentum=0.9
     def call(self,x):
         x = self.conv(x)
         x = self.norm(x) if self.normalize else x
@@ -48,16 +48,22 @@ class UNetUp(tf.keras.layers.Layer):
         """Layers used during upsampling"""
         self.upconv = layers.Conv2DTranspose(out_size, 4, 2, padding='same')
         self.upsample = layers.UpSampling2D(size=2)
+        self.conv_tr = layers.Conv2D(out_size,
+                                  kernel_size=4,
+                                  strides=1,
+                                  padding='same',
+                                  use_bias=False)
         #self.conv = layers.Conv2D(filters, kernel_size=f_size, strides=1, padding='same', activation='relu')
-        self.relu = layers.LeakyReLU()#alpha=0.2
+        self.relu = layers.LeakyReLU(alpha=0.2)#alpha=0.2
         self.dropout_rate = dropout_rate
         if dropout_rate:
             self.drop = layers.Dropout(dropout_rate)
-        self.norm = layers.BatchNormalization(epsilon=1e-03, momentum=0.9) #epsilon=1e-05, momentum=0.9
+        self.norm = layers.BatchNormalization(epsilon=1e-05, momentum=0.9) #epsilon=1e-05, momentum=0.9
         self.concat = layers.Concatenate()
     def call(self,x,skip_input):
         #print('x {}'.format(x.shape))
-        x = self.upconv(x)
+        x = self.upsample(x)
+        x = self.conv_trt(x)
         #print('upconv {}'.format(x.shape))
         x = self.norm(x)
         #print('norm {}'.format(x.shape))
@@ -129,14 +135,17 @@ class SA_Encoder(tf.keras.layers.Layer):
         #d0 = layers.Input(shape=self.img_shape)
         #print('d0 {}'.format(d0.shape))
         # Downsampling
-        d1 = self.down1(x)
+        #x:32x32
+        d1 = self.down1(x) #d1 :16x16
         #print('d1 {}'.format(d1.shape))
-        d2 = self.down2(d1)
+        d2 = self.down2(d1) #d2 : 8x8 
         #print('d2 {}'.format(d2.shape))
-        d3 = self.down3(d2)
+        d3 = self.down3(d2) #d3 : 4x4
         #print('d3 {}'.format(d3.shape))
+        
+        last_features = d3 # last_features : 4x4
+        
         d4 = self.down4(d3)
-        last_features = d4
         #print('last_features {}'.format(last_features.shape))
         #print('d4 {}'.format(d4.shape))
         d5 = self.down5(d4)
@@ -184,6 +193,13 @@ class SA_Decoder(tf.keras.layers.Layer):
         self.gf = ngf
         self.con1 = layers.Conv2D(self.gf*4, kernel_size=4, strides=1, padding='same', activation='relu')
         self.upsample = layers.UpSampling2D(size=2)
+        
+        self.conv_tr = layers.Conv2D(self.gf*4,
+                                  kernel_size=4,
+                                  strides=1,
+                                  padding='same',
+                                  use_bias=False)
+        
         self.upconv = layers.Conv2DTranspose(self.gf*4,4,strides=2,padding='valid')
         self.channels = nc
         self.conv = layers.Conv2D(self.channels, kernel_size=4, strides=1,
@@ -199,9 +215,10 @@ class SA_Decoder(tf.keras.layers.Layer):
         self.tanh = tf.keras.activations.tanh
     def call(self,x,d):
         # Upsampling
-        x = self.upconv(x)
-        #x = self.upsample(x)
-        #x = self.upsample(x)
+        #x = self.upconv(x)
+        x = self.upsample(x) # x:2x2
+        x = self.upsample(x) # x:4x4
+        x = self.conv_tr(x) # x:4x4
         #print('x {}'.format(x.shape))
         #u1 = self.up1(x, d[5])
         #u2 = self.up2(u1, d[4])
@@ -216,15 +233,15 @@ class SA_Decoder(tf.keras.layers.Layer):
         #u2 = self.up2(u1, d[3])
         #print('u2 {}'.format(u2.shape))
         #print('d[2] {}'.format(d[2].shape))
-        u3 = self.up3(x, d[2])
+        u3 = self.up3(x, d[1]) # u3:8x8
         #print('u3 {}'.format(u3.shape))
-        u4 = self.up4(u3, d[1])
+        u4 = self.up4(u3, d[0]) # u4 :16x16
         #print('u4 {}'.format(u4.shape))
-        u5 = self.up5(u4, d[0])
+        #u5 = self.up5(u4, d[0])
         #print('u5 {}'.format(u5.shape))
-        u6 = self.upsample(u5)
+        u5 = self.upsample(u4) # u5:32x32
         #print('u6 {}'.format(u6.shape))
-        gen_img = self.conv(u6)
+        gen_img = self.conv(u5) #gen_img:32x32x3
         
         #gen_img = self.tanh(gen_img)
         #print('gen_img {}'.format(gen_img.shape))
