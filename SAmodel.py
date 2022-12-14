@@ -27,7 +27,6 @@ from tensorflow.keras import layers, Sequential, regularizers
 
 #============================================================================================
 
-
 class UNetDown(tf.keras.layers.Layer):
     def __init__(self, filters, f_size=4, normalize=True):
         super(UNetDown, self).__init__()
@@ -41,6 +40,7 @@ class UNetDown(tf.keras.layers.Layer):
         x = self.norm(x) if self.normalize else x
         x = self.relu(x)
         return x
+
         
 class UNetUp(tf.keras.layers.Layer):
     def __init__(self, out_size, dropout_rate=0):
@@ -63,7 +63,7 @@ class UNetUp(tf.keras.layers.Layer):
     def call(self,x,skip_input):
         #print('x {}'.format(x.shape))
         x = self.upsample(x)
-        x = self.conv_trt(x)
+        x = self.conv_tr(x)
         #print('upconv {}'.format(x.shape))
         x = self.norm(x)
         #print('norm {}'.format(x.shape))
@@ -78,6 +78,8 @@ class UNetUp(tf.keras.layers.Layer):
 class SA_Encoder(tf.keras.layers.Layer):
     """ DCGAN ENCODER NETWORK
     """
+    
+        
     def __init__(self,
                  isize,
                  nz,
@@ -129,7 +131,7 @@ class SA_Encoder(tf.keras.layers.Layer):
         
         self.ca5 = ChannelAttention(self.gf*8)
         self.sa5 = SpatialAttention()
-        
+   
     def call(self, x):
         # Image input
         #d0 = layers.Input(shape=self.img_shape)
@@ -144,9 +146,9 @@ class SA_Encoder(tf.keras.layers.Layer):
         #print('d3 {}'.format(d3.shape))
         
         last_features = d3 # last_features : 4x4
-        
-        d4 = self.down4(d3)
         #print('last_features {}'.format(last_features.shape))
+        d4 = self.down4(d3)
+        
         #print('d4 {}'.format(d4.shape))
         d5 = self.down5(d4)
         #print('d5 {}'.format(d5.shape))
@@ -217,6 +219,7 @@ class SA_Decoder(tf.keras.layers.Layer):
         self.up3 = UNetUp(self.gf*4)
         self.up4 = UNetUp(self.gf*2)
         self.up5 = UNetUp(self.gf)
+        self.up6 = UNetUp(self.gf)
         
         self.tanh = tf.keras.activations.tanh
     def call(self,x,d):
@@ -239,17 +242,18 @@ class SA_Decoder(tf.keras.layers.Layer):
         #u2 = self.up2(u1, d[3])
         #print('u2 {}'.format(u2.shape))
         #print('d[2] {}'.format(d[2].shape))
-        u3 = self.up4(x, d[1]) # u3:8x8
-        #print('u3 {}'.format(u3.shape))
-        u4 = self.up5(u3, d[0]) # u4 :16x16
+        u4 = self.up3(x, d[1]) # u3:8x8
         #print('u4 {}'.format(u4.shape))
-        #u5 = self.up5(u4, d[0])
+        u5 = self.up4(u4, d[0]) # u4 :16x16
         #print('u5 {}'.format(u5.shape))
-        u5 = self.upsample(u4) # u5:32x32
-        #print('u6 {}'.format(u6.shape))
-        u5 = self.conv_tr2(x) # u5:32x32
+        #u5 = self.up5(u4, d[0])
         
-        gen_img = self.conv(u5) #gen_img:32x32x3
+        u6 = self.upsample(u5) # u5:32x32
+        #print('u6 up {}'.format(u5.shape))
+        #print('u6 upsample {}'.format(u6.shape))
+        u6 = self.conv_tr2(u6) # u5:32x32
+        #print('u6 conv {}'.format(u6.shape))
+        gen_img = self.conv(u6) #gen_img:32x32x3
         
         #gen_img = self.tanh(gen_img)
         #print('gen_img {}'.format(gen_img.shape))
