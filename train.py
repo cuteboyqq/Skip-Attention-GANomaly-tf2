@@ -14,27 +14,27 @@ from absl import logging
 FLAGS = flags.FLAGS
 flags.DEFINE_integer("shuffle_buffer_size", 10000,
                      "buffer size for pseudo shuffle")
-flags.DEFINE_integer("batch_size", 16, "batch_size")
-flags.DEFINE_integer("isize", 64, "input size")
+flags.DEFINE_integer("batch_size", 64, "batch_size")
+flags.DEFINE_integer("isize", 32, "input size")
 flags.DEFINE_string("ckpt_dir", 'ckpt', "checkpoint folder")
-flags.DEFINE_integer("nz", 200, "latent dims")
+flags.DEFINE_integer("nz", 100, "latent dims")
 flags.DEFINE_integer("nc", 3, "input channels")
 flags.DEFINE_integer("ndf", 64, "number of discriminator's filters")
 flags.DEFINE_integer("ngf", 64, "number of generator's filters")
 flags.DEFINE_integer("extralayers", 0, "extralayers for both G and D")
 flags.DEFINE_list("encdims", None, "Layer dimensions of the encoder and in reverse of the decoder."
                                    "If given, dense encoder and decoders are used.")
-flags.DEFINE_integer("niter",60,"number of training epochs")
+flags.DEFINE_integer("niter",100,"number of training epochs")
 flags.DEFINE_float("lr", 2e-4, "learning rate")
 flags.DEFINE_float("w_adv", 1., "Adversarial loss weight")
 flags.DEFINE_float("w_con", 50., "Reconstruction loss weight")
 flags.DEFINE_float("w_enc", 1., "Encoder loss weight")
 flags.DEFINE_float("beta1", 0.5, "beta1 for Adam optimizer")
-flags.DEFINE_string("dataset", r'/home/ali/GitHub_Code/YOLO/YOLOV5-old/runs/detect/f_384_2min/crops_1cls', "name of dataset")
+flags.DEFINE_string("dataset", r'/home/ali/datasets/factory_data/2022-12-21-4cls-cropimg/images/train', "name of dataset")
 #flags.DEFINE_string("dataset", 'cifar10', "name of dataset")
-flags.DEFINE_string("dataset_test", r'/home/ali/GitHub_Code/YOLO/YOLOV5-old/runs/detect/f_384_2min/crops_2cls', "name of dataset")
-flags.DEFINE_string("dataset_infer", r'/home/ali/GitHub_Code/YOLO/YOLOV5-old/runs/detect/f_384_2min/crops_1cls', "name of dataset")
-flags.DEFINE_string("dataset_infer_abnormal", r'/home/ali/GitHub_Code/YOLO/YOLOV5-old/runs/detect/f_384_2min/defect_aug', "name of dataset")
+flags.DEFINE_string("dataset_test", r'/home/ali/datasets/factory_data/2022-12-21-4cls-cropimg/images/val', "name of dataset")
+flags.DEFINE_string("dataset_infer", r'/home/ali/datasets/factory_data/2022-12-21-4cls-cropimg/test/crops_line', "name of dataset")
+flags.DEFINE_string("dataset_infer_abnormal", r'/home/ali/datasets/factory_data/2022-12-21-4cls-cropimg/test/crops_noline', "name of dataset")
 DATASETS = ['mnist', 'cifar10']
 '''
 flags.register_validator('dataset',
@@ -57,7 +57,7 @@ def process(image,label):
     return image,label
 
 def main(_):
-    show_img = False
+    show_img = True
     TRAIN = True
     opt = FLAGS
     # logging
@@ -181,8 +181,8 @@ def main(_):
         print(batch_size_)
         test_dataset = tf.keras.utils.image_dataset_from_directory(
           val_data_dir,
-          validation_split=0.1,
-          subset="validation",
+          #validation_split=0.1,
+          #subset="validation",
           shuffle=shuffle,
           seed=123,
           image_size=(img_height, img_width),
@@ -232,12 +232,12 @@ def main(_):
         sa_ganomaly.fit(opt.niter)
     
         # evaluating
-        sa_ganomaly.evaluate_best(test_dataset)
+        #sa_ganomaly.evaluate_best(test_dataset)
     else:
         if show_img:
-            SHOW_MAX_NUM = 5
+            SHOW_MAX_NUM = 10
         else:
-            SHOW_MAX_NUM = 6000
+            SHOW_MAX_NUM = 14000
         positive_loss = sa_ganomaly.infer(infer_dataset,SHOW_MAX_NUM,show_img,'normal')
         defeat_loss = sa_ganomaly.infer(infer_dataset_abnormal,SHOW_MAX_NUM,show_img,'abnormal')
         if not show_img:
