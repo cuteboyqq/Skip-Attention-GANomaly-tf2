@@ -116,31 +116,31 @@ class SA_Encoder(tf.keras.layers.Layer):
                                   padding='same',
                                   use_bias=False)
         
-        self.down1 = UNetDown(self.gf*1, normalize=False)
-        self.down2 = UNetDown(self.gf*2)
-        self.down3 = UNetDown(self.gf*4)
-        self.down4 = UNetDown(self.gf*8)
-        self.down5 = UNetDown(self.gf*8)
+        self.down1 = UNetDown(self.gf*1, normalize=False)#64
+        self.down2 = UNetDown(self.gf*2)#128
+        self.down3 = UNetDown(self.gf*4)#256
+        self.down4 = UNetDown(self.gf*8)#512
+        self.down5 = UNetDown(self.gf*8)#512
         #self.down6 = UNetDown(self.gf*8)
         #self.down7 = UNetDown(self.gf*8)
         self.ca0 = ChannelAttention(self.gf*1)
         self.sa0 = SpatialAttention()
         
         
-        self.ca1 = ChannelAttention(self.gf*1)
+        self.ca1 = ChannelAttention(self.gf*1)#64
         self.sa1 = SpatialAttention()
         
-        self.ca2 = ChannelAttention(self.gf*2)
+        self.ca2 = ChannelAttention(self.gf*2)#128
         self.sa2 = SpatialAttention()
         
-        self.ca3 = ChannelAttention(self.gf*4)
+        self.ca3 = ChannelAttention(self.gf*4)#256
         self.sa3 = SpatialAttention()
         
-        self.ca4 = ChannelAttention(self.gf*8)
+        self.ca4 = ChannelAttention(self.gf*8)#512
         self.sa4 = SpatialAttention()
         
         
-        self.ca5 = ChannelAttention(self.gf*8)
+        self.ca5 = ChannelAttention(self.gf*8)#512
         self.sa5 = SpatialAttention()
    
     def call(self, x):
@@ -149,19 +149,19 @@ class SA_Encoder(tf.keras.layers.Layer):
         #print('d0 {}'.format(d0.shape))
         # Downsampling
         #x:32x32
-        d1 = self.down1(x) #d1 :16x16
+        d1 = self.down1(x) #d1 :16x16,64
         #print('d1 {}'.format(d1.shape))
-        d2 = self.down2(d1) #d2 : 8x8 
+        d2 = self.down2(d1) #d2 : 8x8,128 
         #print('d2 {}'.format(d2.shape))
-        d3 = self.down3(d2) #d3 : 4x4
+        d3 = self.down3(d2) #d3 : 4x4,256
         #print('d3 {}'.format(d3.shape))
         
         #last_features = d3 # last_features : 4x4
         #print('last_features {}'.format(last_features.shape))
-        d4 = self.down4(d3) #d4 : 2x2
+        d4 = self.down4(d3) #d4 : 2x2,512
         last_features = d4
         #print('d4 {}'.format(d4.shape))
-        d5 = self.down5(d4) #d5 : 1x1
+        d5 = self.down5(d4) #d5 : 1x1,512
         #print('d5 {}'.format(d5.shape))
         
         #print('d5 {}'.format(d5.shape))
@@ -173,19 +173,19 @@ class SA_Encoder(tf.keras.layers.Layer):
         
         
         d1 = self.ca1(d1) * d1
-        _d1 = self.sa1(d1) * d1 #d1 : 16x16
+        _d1 = self.sa1(d1) * d1 #d1 : 16x16,64
         
         d2 = self.ca2(d2) * d2
-        _d2 = self.sa2(d2) * d2 #d2 : 8x8
+        _d2 = self.sa2(d2) * d2 #d2 : 8x8,128
         
         d3 = self.ca3(d3) * d3
-        _d3 = self.sa3(d3) * d3 #d3 : 4x4
-        
+        _d3 = self.sa3(d3) * d3 #d3 : 4x4,256
+    
         d4 = self.ca4(d4) * d4
-        _d4 = self.sa4(d4) * d4 #d2 : 2x2
+        _d4 = self.sa4(d4) * d4 #d2 : 2x2,512
         
         d5 = self.ca4(d5) * d5
-        _d5 = self.sa4(d5) * d5 #d1 : 1x1
+        _d5 = self.sa4(d5) * d5 #d1 : 1x1,512
         
         #d = [d1,d2,d3,d4,d5]
         d = [_d1,_d2,_d3,_d4,_d5,_d0]
@@ -239,22 +239,23 @@ class SA_Decoder(tf.keras.layers.Layer):
         
         #self.up1 = UNetUp(self.gf*8)
         #self.up1 = UNetUp(self.gf*8)
-        self.up2 = UNetUp(self.gf*8)
-        self.up3 = UNetUp(self.gf*4)
-        self.up4 = UNetUp(self.gf*2)
-        self.up5 = UNetUp(self.gf)
-        self.up6 = UNetUp(self.gf)
+        self.up2 = UNetUp(self.gf*8) #512
+        self.up3 = UNetUp(self.gf*4) #256
+        self.up4 = UNetUp(self.gf*2) #128
+        self.up5 = UNetUp(self.gf) #64
+        self.up6 = UNetUp(self.gf) #64
         
         self.tanh = tf.keras.activations.tanh
     def call(self,x,d):
         # Upsampling
         #x = self.upconv(x)
-        x = self.upsample(x) # x:2x2
+        x = self.upsample(x) # x:2x2,3
         #x = self.upsample(x) # x:4x4
-        x = self.conv_tr(x) # x: 2x2
+        x = self.conv_tr(x) # x: 2x2,512
         #print('x {}'.format(x.shape))
         #u1 = self.up1(x, d[5])
-        u2 = self.up2(x, d[2]) #u2 : 4x4
+        u2 = self.up2(x, d[2]) #u2 : 4x4,512+256
+        #print('u2 : {}'.format(u2.shape))
         #c1 = self.con1(x)
         #u0 = self.upsample(c1)
         #print('c1 {}'.format(c1.shape))
@@ -270,9 +271,10 @@ class SA_Decoder(tf.keras.layers.Layer):
         #Notes d = [_d1,_d2,_d3,_d4,_d5] 
         #index d = [  0,  1,  2,  3, 4]
         #size  d = [ 16, 8,  4,  2, 1]         
-        u3 = self.up3(u2, d[1]) # u4:8x8
+        u3 = self.up3(u2, d[1]) # u4:8x8,256+128
+        #print('u3 {}'.format(u3.shape))
+        u4 = self.up4(u3, d[0]) # u4 :16x16,128+64
         #print('u4 {}'.format(u4.shape))
-        u4 = self.up4(u3, d[0]) # u4 :16x16
         #u4 = self.upsample(u3) #u4 : 16x16
         #u4 = self.conv_tr3(u4) # u4 : 16x16
         #u4 = self.bn(u4)
@@ -281,12 +283,12 @@ class SA_Decoder(tf.keras.layers.Layer):
         #u5 = self.up5(u4, d[0])
         
         #u6 = self.up6(u4,d[5]) #u6 : 32x32
-        u5 = self.upsample(u4) # u5:32x32
+        u5 = self.upsample(u4) # u5:32x32,192
         #print('u6 up {}'.format(u5.shape))
         #print('u6 upsample {}'.format(u6.shape))
-        u6 = self.conv_tr2(u5) # u6:32x32
+        u6 = self.conv_tr2(u5) # u6:32x32,64
         #u6 = self.bn(u6)
-        u6 = self.act(u6)
+        u6 = self.act(u6)# u6: 32x32,64
         #print('u6 conv {}'.format(u6.shape))
         gen_img = self.conv(u6) #gen_img:32x32x3
         
