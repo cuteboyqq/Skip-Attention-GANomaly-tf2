@@ -14,7 +14,7 @@ from absl import logging
 FLAGS = flags.FLAGS
 flags.DEFINE_integer("shuffle_buffer_size", 10000,
                      "buffer size for pseudo shuffle")
-flags.DEFINE_integer("batch_size", 64, "batch_size")
+flags.DEFINE_integer("batch_size", 1, "batch_size")
 flags.DEFINE_integer("isize", 32, "input size")
 flags.DEFINE_string("ckpt_dir", 'ckpt', "checkpoint folder")
 flags.DEFINE_integer("nz", 100, "latent dims")
@@ -57,8 +57,8 @@ def process(image,label):
     return image,label
 
 def main(_):
-    show_img = True
-    TRAIN = True
+    show_img = False
+    TRAIN = False
     opt = FLAGS
     # logging
     logging.set_verbosity(logging.INFO)
@@ -237,11 +237,31 @@ def main(_):
         if show_img:
             SHOW_MAX_NUM = 10
         else:
-            SHOW_MAX_NUM = 14000
-        positive_loss = sa_ganomaly.infer(infer_dataset,SHOW_MAX_NUM,show_img,'normal')
-        defeat_loss = sa_ganomaly.infer(infer_dataset_abnormal,SHOW_MAX_NUM,show_img,'abnormal')
+            SHOW_MAX_NUM = 14400
+        img_dir = r'/home/ali/datasets/factory_data/2022-12-21-4cls-cropimg/test/crops_line/line'
+        #print('infer_dataset : {}'.format(opt.dataset_infer))
+        normal_name =  str(opt.isize) + 'nz' + str(opt.nz) + '-' + str(SHOW_MAX_NUM) + '-opencv-normal' + '-ndf' + str(opt.ndf) + '-ngf' + str(opt.ngf)
+        loss_normal_list = sa_ganomaly.infer_python(img_dir,SHOW_MAX_NUM,save_image=True,name=normal_name,isize=opt.isize)
+        
+        img_dir = r'/home/ali/datasets/factory_data/2022-12-21-4cls-cropimg/test/crops_noline/noline'
+        #print('infer_dataset_abnormal : {}'.format(opt.dataset_infer_abnormal))
+        abnormal_name =  str(opt.isize) + 'nz' + str(opt.nz) + '-' + str(SHOW_MAX_NUM) + '-opencv-abnormal' + '-ndf' + str(opt.ndf) + '-ngf' + str(opt.ngf)
+        loss_abnormal_list = sa_ganomaly.infer_python(img_dir,SHOW_MAX_NUM,save_image=True,name=abnormal_name,isize=opt.isize)
+        
+        #loss_normal_list = sa_ganomaly.infer(infer_dataset,SHOW_MAX_NUM,show_img,'normal')
+        #loss_abnormal_list = sa_ganomaly.infer(infer_dataset_abnormal,SHOW_MAX_NUM,show_img,'abnormal')
         if not show_img:
-            sa_ganomaly.plot_loss_distribution( SHOW_MAX_NUM,positive_loss,defeat_loss)
+            sa_ganomaly.plot_loss_distribution( SHOW_MAX_NUM,loss_normal_list,loss_abnormal_list)
+            
+            hist_name =  str(opt.isize) + 'nz' + str(opt.nz) + '-' + str(SHOW_MAX_NUM) + '-opencv-histogram' + '-ndf' + str(opt.ndf) + '-ngf' + str(opt.ngf)
+            sa_ganomaly.plot_two_loss_histogram(loss_normal_list,loss_abnormal_list,hist_name)
+            print('Finish plot_two_loss_histogram')
+            analysis_name =  str(opt.isize) + 'nz' + str(opt.nz) + '-' + str(SHOW_MAX_NUM) + '-opencv-analysis' + '-ndf' + str(opt.ndf) + '-ngf' + str(opt.ngf)
+            #ganomaly.Analysis_two_list(loss_normal_list, loss_abnormal_list, analysis_name)
+            # User Define Loss TH
+            user_loss_list = [0,0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1.0,1.1,1.25,1.5,1.75,2.0,2.2,2.4,2.5,2.6,2.8,3.0,3.5,4.0,5.0]
+            
+            sa_ganomaly.Analysis_two_list_UserDefineLossTH(loss_normal_list, loss_abnormal_list, analysis_name, user_loss_list)
     #print(loss_list)
     #print(loss_abnormal_list)
 if __name__ == '__main__':
