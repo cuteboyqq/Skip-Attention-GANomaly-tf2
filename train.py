@@ -57,7 +57,7 @@ def process(image,label):
     return image,label
 
 def main(_):
-    show_img = False
+    show_img = True
     TRAIN = False
     opt = FLAGS
     # logging
@@ -238,18 +238,22 @@ def main(_):
             SHOW_MAX_NUM = 10
         else:
             SHOW_MAX_NUM = 14400
-        img_dir = r'/home/ali/datasets/factory_data/2022-12-21-4cls-cropimg/test/crops_line/line'
-        #print('infer_dataset : {}'.format(opt.dataset_infer))
-        normal_name =  str(opt.isize) + 'nz' + str(opt.nz) + '-' + str(SHOW_MAX_NUM) + '-opencv-normal' + '-ndf' + str(opt.ndf) + '-ngf' + str(opt.ngf)
-        loss_normal_list = sa_ganomaly.infer_python(img_dir,SHOW_MAX_NUM,save_image=True,name=normal_name,isize=opt.isize)
+            
+        if show_img:
+            loss_normal_list = sa_ganomaly.infer(infer_dataset,SHOW_MAX_NUM,show_img,'normal')
+            loss_abnormal_list = sa_ganomaly.infer(infer_dataset_abnormal,SHOW_MAX_NUM,show_img,'abnormal')
+        else:    
+            img_dir = r'/home/ali/datasets/factory_data/2022-12-21-4cls-cropimg/test/crops_line/line'
+            #print('infer_dataset : {}'.format(opt.dataset_infer))
+            normal_name =  str(opt.isize) + 'nz' + str(opt.nz) + '-' + str(SHOW_MAX_NUM) + '-opencv-normal' + '-ndf' + str(opt.ndf) + '-ngf' + str(opt.ngf)
+            loss_normal_list = sa_ganomaly.infer_python(img_dir,SHOW_MAX_NUM,save_image=True,name=normal_name,isize=opt.isize)
+            
+            img_dir = r'/home/ali/datasets/factory_data/2022-12-21-4cls-cropimg/test/crops_noline/noline'
+            #print('infer_dataset_abnormal : {}'.format(opt.dataset_infer_abnormal))
+            abnormal_name =  str(opt.isize) + 'nz' + str(opt.nz) + '-' + str(SHOW_MAX_NUM) + '-opencv-abnormal' + '-ndf' + str(opt.ndf) + '-ngf' + str(opt.ngf)
+            loss_abnormal_list = sa_ganomaly.infer_python(img_dir,SHOW_MAX_NUM,save_image=True,name=abnormal_name,isize=opt.isize)
         
-        img_dir = r'/home/ali/datasets/factory_data/2022-12-21-4cls-cropimg/test/crops_noline/noline'
-        #print('infer_dataset_abnormal : {}'.format(opt.dataset_infer_abnormal))
-        abnormal_name =  str(opt.isize) + 'nz' + str(opt.nz) + '-' + str(SHOW_MAX_NUM) + '-opencv-abnormal' + '-ndf' + str(opt.ndf) + '-ngf' + str(opt.ngf)
-        loss_abnormal_list = sa_ganomaly.infer_python(img_dir,SHOW_MAX_NUM,save_image=True,name=abnormal_name,isize=opt.isize)
         
-        #loss_normal_list = sa_ganomaly.infer(infer_dataset,SHOW_MAX_NUM,show_img,'normal')
-        #loss_abnormal_list = sa_ganomaly.infer(infer_dataset_abnormal,SHOW_MAX_NUM,show_img,'abnormal')
         if not show_img:
             sa_ganomaly.plot_loss_distribution( SHOW_MAX_NUM,loss_normal_list,loss_abnormal_list)
             
