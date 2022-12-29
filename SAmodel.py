@@ -71,7 +71,10 @@ class UNetUp(tf.keras.layers.Layer):
         #x = self.conv(x)
         x = self.drop(x) if self.dropout_rate else x
         
-        x = self.concat([x,skip_input])
+        if skip_input is None:
+            x = x
+        else:
+            x = self.concat([x,skip_input])
         return x
     
 class SA_Encoder(tf.keras.layers.Layer):
@@ -155,11 +158,9 @@ class SA_Encoder(tf.keras.layers.Layer):
         #print('d2 {}'.format(d2.shape))
         d3 = self.down3(d2) #d3 : 4x4,256
         #print('d3 {}'.format(d3.shape))
-        
-        #last_features = d3 # last_features : 4x4
-        #print('last_features {}'.format(last_features.shape))
         d4 = self.down4(d3) #d4 : 2x2,512
         last_features = d4
+        #print('last_features {}'.format(last_features.shape))
         #print('d4 {}'.format(d4.shape))
         d5 = self.down5(d4) #d5 : 1x1,512
         #print('d5 {}'.format(d5.shape))
@@ -172,23 +173,25 @@ class SA_Encoder(tf.keras.layers.Layer):
         _d0 = self.sa0(d0) * d0   #d0 : 32x32
         
         
-        d1 = self.ca1(d1) * d1
-        _d1 = self.sa1(d1) * d1 #d1 : 16x16,64
+        USE_ATTENSION = False
+        if USE_ATTENSION:
+            d1 = self.ca1(d1) * d1
+            _d1 = self.sa1(d1) * d1 #d1 : 16x16,64
+            
+            d2 = self.ca2(d2) * d2
+            _d2 = self.sa2(d2) * d2 #d2 : 8x8,128
+            
+            d3 = self.ca3(d3) * d3
+            _d3 = self.sa3(d3) * d3 #d3 : 4x4,256
         
-        d2 = self.ca2(d2) * d2
-        _d2 = self.sa2(d2) * d2 #d2 : 8x8,128
+            d4 = self.ca4(d4) * d4
+            _d4 = self.sa4(d4) * d4 #d2 : 2x2,512
+            
+            d5 = self.ca4(d5) * d5
+            _d5 = self.sa4(d5) * d5 #d1 : 1x1,512
         
-        d3 = self.ca3(d3) * d3
-        _d3 = self.sa3(d3) * d3 #d3 : 4x4,256
-    
-        d4 = self.ca4(d4) * d4
-        _d4 = self.sa4(d4) * d4 #d2 : 2x2,512
-        
-        d5 = self.ca4(d5) * d5
-        _d5 = self.sa4(d5) * d5 #d1 : 1x1,512
-        
-        #d = [d1,d2,d3,d4,d5]
-        d = [_d1,_d2,_d3,_d4,_d5,_d0]
+        d = [d1,d2,d3,d4,d5]
+        #d = [_d1,_d2,_d3,_d4,_d5,_d0]
         #d = [d1,d2,d3,d4,d5]
         out = self.out_conv(last_features)
         #print('out {}'.format(out.shape))
@@ -248,51 +251,29 @@ class SA_Decoder(tf.keras.layers.Layer):
         self.tanh = tf.keras.activations.tanh
     def call(self,x,d):
         # Upsampling
-        #x = self.upconv(x)
         x = self.upsample(x) # x:2x2,3
-        #x = self.upsample(x) # x:4x4
         x = self.conv_tr(x) # x: 2x2,512
         #print('x {}'.format(x.shape))
-        #u1 = self.up1(x, d[5])
+        #u2 = self.up2(x, None) #u2 : 4x4,512+256
         u2 = self.up2(x, d[2]) #u2 : 4x4,512+256
         #print('u2 : {}'.format(u2.shape))
-        #c1 = self.con1(x)
-        #u0 = self.upsample(c1)
-        #print('c1 {}'.format(c1.shape))
-        #print('u0 {}'.format(u0.shape))
-        #print('d[4] {}'.format(d[4].shape))
-        #u1 = self.up1(x, d[4]),
-        #print('u1 {}'.format(u1.shape))
-        #print('d[3] {}'.format(d[3].shape))
-        #u2 = self.up2(u1, d[3])
-        #print('u2 {}'.format(u2.shape))
-        #print('d[2] {}'.format(d[2].shape))
-        
         #Notes d = [_d1,_d2,_d3,_d4,_d5] 
         #index d = [  0,  1,  2,  3, 4]
-        #size  d = [ 16, 8,  4,  2, 1]         
-        u3 = self.up3(u2, d[1]) # u4:8x8,256+128
+        #size  d = [ 16, 8,  4,  2, 1]
+        u3 = self.up3(u2, None) # u4:8x8,256+128
+        #u3 = self.up3(u2, d[1]) # u4:8x8,256+128
         #print('u3 {}'.format(u3.shape))
-        u4 = self.up4(u3, d[0]) # u4 :16x16,128+64
+        #u4 = self.up4(u3, d[0]) # u4 :16x16,128+64
+        u4 = self.up4(u3, None) # u4 :16x16,128+64
         #print('u4 {}'.format(u4.shape))
-        #u4 = self.upsample(u3) #u4 : 16x16
-        #u4 = self.conv_tr3(u4) # u4 : 16x16
-        #u4 = self.bn(u4)
-        #u4 = self.act(u4)
-        #print('u5 {}'.format(u5.shape))
-        #u5 = self.up5(u4, d[0])
-        
-        #u6 = self.up6(u4,d[5]) #u6 : 32x32
-        u5 = self.upsample(u4) # u5:32x32,192
-        #print('u6 up {}'.format(u5.shape))
-        #print('u6 upsample {}'.format(u6.shape))
-        u6 = self.conv_tr2(u5) # u6:32x32,64
+        u6 = self.up5(u4, None) #u6 : 32x32
+        #u6 = self.up5(u4,d[5]) #u6 : 32x32
+        #u5 = self.upsample(u4) # u5:32x32,192
+        #u6 = self.conv_tr2(u5) # u6:32x32,64
         #u6 = self.bn(u6)
-        u6 = self.act(u6)# u6: 32x32,64
+        #u6 = self.act(u6)# u6: 32x32,64
         #print('u6 conv {}'.format(u6.shape))
         gen_img = self.conv(u6) #gen_img:32x32x3
-        
-        #gen_img = self.tanh(gen_img)
         #print('gen_img {}'.format(gen_img.shape))
         return gen_img
     
@@ -401,7 +382,7 @@ class GANRunner:
                 logging.info(
                     '\t Validating: G_losses: {}, D_losses: {}'.format(
                         G_losses, D_losses))
-            if epoch>10:
+            if epoch>2:
                 # evaluate on test_dataset
                 if self.test_dataset is not None:
                     dict_ = self.evaluate(self.test_dataset)
@@ -564,6 +545,152 @@ class Skip_Attention_GANomaly(GANRunner):
             #if show_num%20==0:
                 #print(show_num)
         return loss_list
+    
+    def infer_cropimage(self, image, save_img=False, show_log=False, name='factory_data', cnt=1, load_model=True):
+        if load_model:
+            self.load_best()
+        def renormalize(tensor,minto, maxto):
+                minFrom= tf.math.reduce_min(tensor)
+                maxFrom= tf.math.reduce_max(tensor)
+                #minFrom= tensor.min() #tf.reduce_min
+                #maxFrom= tensor.max()
+                minTo = minto
+                maxTo = maxto
+                return minTo + (maxTo - minTo) * ((tensor - minFrom) / (maxFrom - minFrom))
+            
+        import cv2
+        abnormal = 0
+        self.input = image
+        #print('self.input :{}'.format(self.input.shape))
+        #input()
+        
+        #self.G.build(input_shape=(1, 32, 32, 3))
+        self.latent_i, self.gen_img, self.latent_o = self.G(self.input)
+        #self.gen_img = renormalize(self.gen_img,0,1)
+        #self.save_best()
+        self.pred_real, self.feat_real = self.D(self.input)
+        self.pred_fake, self.feat_fake = self.D(self.gen_img)
+        g_loss, adv_loss, con_loss, enc_loss = self.g_loss_infer()
+        
+        adv_loss, con_loss, enc_loss = adv_loss.numpy(), con_loss.numpy(), enc_loss.numpy()
+        
+        print('{} loss: {}'.format(cnt,g_loss))
+        if g_loss>2.0:
+            abnormal=1
+            print('abnoraml')
+        else:
+            abnormal=0
+            print('normal')
+            
+        g_loss_str = str(int(g_loss))
+        
+        loss_str = '_' + str(adv_loss) + '_' + str(con_loss) + '_' + str(enc_loss)
+        
+        SHOW_LOSS_STR = True
+        
+        
+        if save_img:
+            save_ori_image_dir = os.path.join('./runs/detect',name,'ori_images',g_loss_str)
+            save_gen_image_dir = os.path.join('./runs/detect',name,'gen_images',g_loss_str)
+
+            os.makedirs(save_ori_image_dir,exist_ok=True)
+            os.makedirs(save_gen_image_dir,exist_ok=True)
+            
+            #ori_image = tf.squeeze(self.input)
+            #ori_image = renormalize(ori_image,0,255)
+            ori_image = np.squeeze(image)
+            ori_image = ori_image*255
+            ori_image = cv2.cvtColor(ori_image,cv2.COLOR_RGB2BGR)
+            #ori_image = ori_image.cpu().numpy()
+            if SHOW_LOSS_STR:
+                filename = 'ori_image_' + str(cnt) + loss_str + '.jpg'
+            else:
+                filename = 'ori_image_' + str(cnt)  + '.jpg'
+            file_path = os.path.join(save_ori_image_dir, filename)
+            cv2.imwrite(file_path, ori_image)
+            #cv2.imshow('ori_img',ori_image)
+            #cv2.waitKey(10)
+            out_image = tf.squeeze(self.gen_img)  
+            #out_image = renormalize(out_image,0,255)
+            #out_image = renormalize(out_image,0,255)
+            out_image = out_image.numpy()
+            out_image = out_image*255
+            out_image = cv2.cvtColor(out_image,cv2.COLOR_RGB2BGR)  
+            
+            #out_image = out_image.cpu().numpy()
+            #out_image = np.squeeze(out_image)
+            #out_image = renormalize(out_image)
+            if SHOW_LOSS_STR:
+                filename = 'out_image_' + str(cnt) + loss_str + '.jpg'
+            else:
+                filename = 'out_image_' + str(cnt) + '.jpg'
+            file_path = os.path.join(save_gen_image_dir,filename)
+            cv2.imwrite(file_path, out_image)
+            #cv2.imshow('gen_img',out_image)
+            #cv2.waitKey(10)
+        if show_log:
+            print('ori image : {}'.format(ori_image.shape))
+            print('ori image : {}'.format(ori_image))
+            print('for infer : {}'.format(self.input.shape))
+            print('for infer : {}'.format(self.input))
+            print('out image : {}'.format(out_image.shape))
+            print('out image : {}'.format(out_image))
+            print('lentent_i : {}'.format(self.latent_i.shape))
+            print('lentent_i : {}'.format(self.latent_i))
+            print('lentent_o : {}'.format(self.latent_o.shape))
+            print('lentent_o : {}'.format(self.latent_o))
+            
+        return g_loss,out_image
+        
+    def infer_python(self, img_dir,SHOW_MAX_NUM,save_image=False,name='normal',isize=64):
+        import glob
+        import cv2
+        import numpy as np
+        #import torchvision
+        #import torch
+        #import imageio as iio
+        from PIL import Image
+        image_list = glob.glob(os.path.join(img_dir,'*.jpg'))
+        loss_list = []
+        self.load_best()
+        cnt = 0
+        USE_PIL = False
+        USE_OPENCV = True
+        for image_path in image_list:
+            #print(image_path)
+            
+            #image = torchvision.io.read_image(image_path)
+            if USE_PIL:
+                image = Image.open(image_path)
+                image = image.convert('RGB')
+                image = image.resize((isize,isize))
+                image = np.asarray(image)
+            cnt+=1
+            if USE_OPENCV:
+                image = cv2.imread(image_path)
+                image = cv2.resize(image,(isize,isize))
+                image = cv2.cvtColor(image,cv2.COLOR_BGR2RGB)
+                
+                
+            #image = tf.expand_dims(image, axis=0)
+            
+            image = image/255.0
+           
+            #tf.convert_to_tensor(image)
+            #image = tf.convert_to_tensor(image)
+
+            #tf.expand_dims(image,axis=0)
+            image = image[np.newaxis, ...].astype(np.float32)
+            if cnt<=SHOW_MAX_NUM:
+                loss,gen_img = self.infer_cropimage(image, save_img=save_image, show_log=False, name=name, cnt=cnt, load_model=False)
+                #loss,gen_img = detect_image(w, image_path, interpreter=interpreter, tflite=False,edgetpu=True, save_image=save_image, cnt=cnt, name=name,isize=isize)
+                #print('{} loss: {}'.format(cnt,loss))
+                loss_list.append(loss.numpy())
+        
+        
+        return loss_list
+    
+    
     def plot_images(self,images,outputs):
         # plot the first ten input images and then reconstructed images
         fig, axes = plt.subplots(nrows=2, ncols=15, sharex=True, sharey=True, figsize=(25,4))
@@ -598,7 +725,226 @@ class Skip_Attention_GANomaly(GANRunner):
         plt2.savefig(file_path)
         plt2.show()
         
+    def plot_loss_histogram(self,loss_list, name):
+        from matplotlib import pyplot
+        import numpy
+        bins = numpy.linspace(0, 6, 100)
+        pyplot.hist(loss_list, bins=bins, alpha=0.5, label=name)
+        os.makedirs('./runs/detect',exist_ok=True)
+        filename = str(name) + '.jpg'
+        file_path = os.path.join('./runs/detect',filename)
+        plt.savefig(file_path)
+        plt.show()
     
+    #https://stackoverflow.com/questions/6871201/plot-two-histograms-on-single-chart-with-matplotlib
+    def plot_two_loss_histogram(self,normal_list, abnormal_list, name):
+        import numpy
+        from matplotlib import pyplot
+        bins = numpy.linspace(0, 6, 100)
+        pyplot.hist(normal_list, bins, alpha=0.5, label='normal')
+        pyplot.hist(abnormal_list, bins, alpha=0.5, label='abnormal')
+        pyplot.legend(loc='upper right')
+        os.makedirs('./runs/detect',exist_ok=True)
+        filename = str(name) + '.jpg'
+        file_path = os.path.join('./runs/detect',filename)
+        plt.savefig(file_path)
+        pyplot.show()
+        
+    
+    def Analysis_two_list(self, normal_list, abnormal_list, name, user_loss_list=None):
+        import math
+        import numpy
+        normal_count_list = [0]*13
+        abnormal_count_list = [0]*13
+        for i in range(len(normal_list)):
+            normal_count_list[int(normal_list[i])]+=1
+        print('normal_count_list')
+        for i in range(len(normal_count_list)):
+            print('{}: {}'.format(i,normal_count_list[i]))
+        
+        for i in range(len(abnormal_list)):
+            abnormal_count_list[int(abnormal_list[i])]+=1
+        print('abnormal_count_list')
+        for i in range(len(abnormal_count_list)):
+            print('{}: {}'.format(i,abnormal_count_list[i]))
+        
+        overlap_normal_count = 0
+        overlap_abnormal_count = 0
+        overlap_count = 0
+        for i in range(len(normal_count_list)):
+            if normal_count_list[i]!=0 and abnormal_count_list[i]!=0:
+                overlap_normal_count += normal_count_list[i]
+                overlap_abnormal_count += abnormal_count_list[i]
+                overlap_count += min(normal_count_list[i],abnormal_count_list[i])
+        print('overlap_normal_count: {}'.format(overlap_normal_count))
+        print('overlap_abnormal_count: {}'.format(overlap_abnormal_count))
+        print('overlap_count: {}'.format(overlap_count))
+        
+        from matplotlib import pyplot
+        bins = numpy.linspace(0, 13, 100)
+        pyplot.hist(normal_list, bins, alpha=0.5, label='normal')
+        pyplot.hist(abnormal_list, bins, alpha=0.5, label='abnormal')
+        pyplot.legend(loc='upper right')
+        os.makedirs('./runs/detect',exist_ok=True)
+        filename = str(name) + '.jpg'
+        file_path = os.path.join('./runs/detect',filename)
+        pyplot.savefig(file_path)
+        pyplot.show()
+        
+        if user_loss_list is None:
+            normal_acc,abnormal_acc = self.Get_lossTH_Accuracy(normal_count_list,abnormal_count_list)
+        else:
+            normal_acc,abnormal_acc = self.Get_lossTH_Accuracy_UserDefineLossTH(normal_count_list,abnormal_count_list, user_loss_list)
+        
+        return normal_count_list,abnormal_count_list,normal_acc,abnormal_acc
+    
+    
+
+    def Analysis_two_list_UserDefineLossTH(self, normal_list, abnormal_list, name, user_loss_list=None):
+        show_log = False
+        import math
+        import numpy
+        normal_count_list = [0]*len(user_loss_list)
+        abnormal_count_list = [0]*len(user_loss_list)
+        
+        user_loss_list = sorted(user_loss_list)
+        
+        if show_log:
+            print('normal_list : {}'.format(normal_list))
+            print('abnormal_list : {}'.format(abnormal_list))
+            print('user_loss_list : {}'.format(user_loss_list))
+        
+        for i in range(len(user_loss_list)):
+            for j in range(len(normal_list)):
+                if (i+1) < len(user_loss_list):
+                    if normal_list[j] >= user_loss_list[i] and  normal_list[j] < user_loss_list[i+1]:
+                        normal_count_list[i]+=1
+                else:
+                    if normal_list[j] >= user_loss_list[i]:
+                        normal_count_list[i]+=1
+        
+        for i in range(len(user_loss_list)):
+            for j in range(len(abnormal_list)):
+                if (i+1) < len(user_loss_list):
+                    if abnormal_list[j] >= user_loss_list[i] and  abnormal_list[j] < user_loss_list[i+1]:
+                        abnormal_count_list[i]+=1
+                else:
+                    if abnormal_list[j] >= user_loss_list[i]:
+                        abnormal_count_list[i]+=1
+                
+        normal_acc,abnormal_acc = self.Get_lossTH_Accuracy_UserDefineLossTH(normal_count_list,abnormal_count_list, user_loss_list)
+        
+        print('user_loss_list: {}'.format(user_loss_list))
+        
+        print('normal_count_list:') 
+        for i in range(len(user_loss_list)):
+            print('{} : {}'.format(user_loss_list[i], normal_count_list[i]))
+            
+        print('abnormal_count_list:')
+        for i in range(len(user_loss_list)):
+            print('{} : {}'.format(user_loss_list[i], abnormal_count_list[i]))
+            
+            
+        #print('normal_count_list: {}'.format(normal_count_list))
+        #print('abnormal_count_list: {}'.format(abnormal_count_list))
+        
+        return normal_count_list,abnormal_count_list,normal_acc,abnormal_acc
+    
+    def Analysis_Accuracy(self, normal_count_list,abnormal_count_list,loss_th=3.0):
+        show_log = False
+        normal_correct_cnt = 0
+        total_normal_cnt = 0
+        for i in range(len(normal_count_list)):
+            total_normal_cnt+=normal_count_list[i]
+            if i < loss_th:
+                normal_correct_cnt+=normal_count_list[i]
+        if show_log:
+            print('normal_correct_cnt: {}'.format(normal_correct_cnt))
+            print('total_normal_cnt: {}'.format(total_normal_cnt))
+        if total_normal_cnt == 0:
+            normal_acc = 0.0
+        else:
+            normal_acc = float(normal_correct_cnt/total_normal_cnt)
+        
+        total_abnormal_cnt = 0
+        abnormal_correct_cnt = 0
+        for i in range(len(abnormal_count_list)):
+            total_abnormal_cnt+=abnormal_count_list[i]
+            if i >= loss_th:
+                abnormal_correct_cnt+=abnormal_count_list[i]
+        if show_log:
+            print('abnormal_correct_cnt : {}'.format(abnormal_correct_cnt))
+            print('total_abnormal_cnt: {}'.format(total_abnormal_cnt))
+        if total_abnormal_cnt==0:
+            abnormal_acc = 0
+        else:
+            abnormal_acc = float(abnormal_correct_cnt / total_abnormal_cnt)
+        
+        
+        return normal_acc,abnormal_acc
+    
+    
+    def Analysis_Accuracy_UserDefineLossTH(self, normal_count_list,abnormal_count_list,loss_th=3.0, user_loss_list=None):
+        show_log = False
+        normal_correct_cnt = 0
+        total_normal_cnt = 0
+        for i in range(len(normal_count_list)):
+            total_normal_cnt+=normal_count_list[i]
+            if user_loss_list[i] < loss_th:
+                normal_correct_cnt+=normal_count_list[i]
+        if show_log:
+            print('normal_correct_cnt: {}'.format(normal_correct_cnt))
+            print('total_normal_cnt: {}'.format(total_normal_cnt))
+        if total_normal_cnt == 0:
+            normal_acc = 0.0
+        else:
+            normal_acc = float(normal_correct_cnt/total_normal_cnt)
+        
+        total_abnormal_cnt = 0
+        abnormal_correct_cnt = 0
+        for i in range(len(abnormal_count_list)):
+            total_abnormal_cnt+=abnormal_count_list[i]
+            if user_loss_list[i] >= loss_th:
+                abnormal_correct_cnt+=abnormal_count_list[i]
+        if show_log:
+            print('abnormal_correct_cnt : {}'.format(abnormal_correct_cnt))
+            print('total_abnormal_cnt: {}'.format(total_abnormal_cnt))
+        if total_abnormal_cnt==0:
+            abnormal_acc = 0
+        else:
+            abnormal_acc = float(abnormal_correct_cnt / total_abnormal_cnt)
+        
+        
+        return normal_acc,abnormal_acc
+    
+    
+    def Get_lossTH_Accuracy(self, normal_count_list,abnormal_count_list):
+        normal_acc_list,abnormal_acc_list=[0.0]*10,[0.0]*10
+        
+        for i in range(len(normal_acc_list)):
+            normal_acc,abnormal_acc = self.Analysis_Accuracy(normal_count_list,abnormal_count_list,i)
+                  
+            normal_acc_list[i] = normal_acc
+            abnormal_acc_list[i] = abnormal_acc
+            
+        for i in range(len(normal_acc_list)):
+            print('loss {} ,normal acc: {} ,abnormal acc{}'.format(i,normal_acc_list[i],abnormal_acc_list[i]))
+            
+        return normal_acc,abnormal_acc
+    
+    def Get_lossTH_Accuracy_UserDefineLossTH(self, normal_count_list,abnormal_count_list, user_loss_list):
+        normal_acc_list,abnormal_acc_list=[0.0]*len(user_loss_list),[0.0]*len(user_loss_list)
+        
+        for i in range(len(user_loss_list)):
+            normal_acc,abnormal_acc = self.Analysis_Accuracy_UserDefineLossTH(normal_count_list,abnormal_count_list,user_loss_list[i],user_loss_list)
+                  
+            normal_acc_list[i] = normal_acc
+            abnormal_acc_list[i] = abnormal_acc
+            
+        for i in range(len(user_loss_list)):
+            print('loss {} ,normal acc: {} ,abnormal acc{}'.format(user_loss_list[i],normal_acc_list[i],abnormal_acc_list[i]))
+            
+        return normal_acc,abnormal_acc
     
     def _evaluate(self, test_dataset):
         an_scores = []
@@ -677,7 +1023,16 @@ class Skip_Attention_GANomaly(GANRunner):
                 self.err_g_con * self.opt.w_con + \
                 self.err_g_enc * self.opt.w_enc
         return g_loss
-
+    
+    def g_loss_infer(self):
+        self.err_g_adv = self.l_adv(self.feat_real, self.feat_fake)
+        self.err_g_con = self.l_con(self.input, self.gen_img)
+        self.err_g_enc = self.l_enc(self.latent_i, self.latent_o)
+        g_loss= self.err_g_adv * self.opt.w_adv + \
+                self.err_g_con * self.opt.w_con + \
+                self.err_g_enc * self.opt.w_enc
+        return g_loss, self.err_g_adv * self.opt.w_adv, self.err_g_con * self.opt.w_con, self.err_g_enc * self.opt.w_enc
+    
     def d_loss(self):
         self.err_d_real = self.l_bce(self.pred_real, self.real_label)
         self.err_d_fake = self.l_bce(self.pred_fake, self.fake_label)
