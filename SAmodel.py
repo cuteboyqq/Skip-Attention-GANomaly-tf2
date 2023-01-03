@@ -33,7 +33,7 @@ class UNetDown(tf.keras.layers.Layer):
         self.conv = layers.Conv2D(filters, kernel_size=f_size, strides=2, padding='same')
         self.relu = layers.LeakyReLU(alpha=0.2) #alpha=0.2
         self.normalize = normalize
-        self.norm = layers.BatchNormalization(epsilon=1e-05, momentum=0.99) #epsilon=1e-05, momentum=0.9
+        self.norm = layers.BatchNormalization(epsilon=1e-05, momentum=0.99,axis=[1,2]) #epsilon=1e-05, momentum=0.9
     def call(self,x):
         x = self.relu(x)
         x = self.conv(x)
@@ -57,7 +57,7 @@ class UNetUp(tf.keras.layers.Layer):
         self.dropout_rate = dropout_rate
         if dropout_rate:
             self.drop = layers.Dropout(dropout_rate)
-        self.norm = layers.BatchNormalization(epsilon=1e-05, momentum=0.99) #epsilon=1e-05, momentum=0.9
+        self.norm = layers.BatchNormalization(epsilon=1e-05, momentum=0.99,axis=[1,2]) #epsilon=1e-05, momentum=0.9
         self.concat = layers.Concatenate()
     def call(self,x,skip_input):
         
@@ -656,9 +656,12 @@ class Skip_Attention_GANomaly(GANRunner):
             
             image = image/255.0
            
+            
             #tf.convert_to_tensor(image)
             #image = tf.convert_to_tensor(image)
-
+            #mean, variance = tf.nn.moments(image, axes=axes)
+            #x_normed = (image - mean) / tf.sqrt(variance + epsilon) # epsilon to avoid dividing by zero
+            
             #tf.expand_dims(image,axis=0)
             image = image[np.newaxis, ...].astype(np.float32)
             if cnt<=SHOW_MAX_NUM:
