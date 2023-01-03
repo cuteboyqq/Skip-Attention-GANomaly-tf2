@@ -33,11 +33,11 @@ class UNetDown(tf.keras.layers.Layer):
         self.conv = layers.Conv2D(filters, kernel_size=f_size, strides=2, padding='same')
         self.relu = layers.LeakyReLU(alpha=0.2) #alpha=0.2
         self.normalize = normalize
-        self.norm = layers.BatchNormalization(epsilon=1e-05, momentum=0.9) #epsilon=1e-05, momentum=0.9
+        self.norm = layers.BatchNormalization(epsilon=1e-05, momentum=0.9,axis=[-1]) #epsilon=1e-05, momentum=0.9
     def call(self,x):
+        x = self.relu(x)
         x = self.conv(x)
         x = self.norm(x) if self.normalize else x
-        x = self.relu(x)
         return x
 
         
@@ -57,9 +57,11 @@ class UNetUp(tf.keras.layers.Layer):
         self.dropout_rate = dropout_rate
         if dropout_rate:
             self.drop = layers.Dropout(dropout_rate)
-        self.norm = layers.BatchNormalization(epsilon=1e-05, momentum=0.9) #epsilon=1e-05, momentum=0.9
+        self.norm = layers.BatchNormalization(epsilon=1e-05, momentum=0.9, axis=[-1]) #epsilon=1e-05, momentum=0.9
         self.concat = layers.Concatenate()
     def call(self,x,skip_input):
+        
+        #print('relu {}'.format(x.shape))
         #print('x {}'.format(x.shape))
         x = self.upsample(x)
         x = self.conv_tr(x)
@@ -67,7 +69,6 @@ class UNetUp(tf.keras.layers.Layer):
         x = self.norm(x)
         #print('norm {}'.format(x.shape))
         x = self.relu(x)
-        #print('relu {}'.format(x.shape))
         #x = self.conv(x)
         x = self.drop(x) if self.dropout_rate else x
         
@@ -106,11 +107,16 @@ class SA_Encoder(tf.keras.layers.Layer):
         
         # state size. K x 4 x 4
         self.output_features = output_features
+        '''
         self.out_conv = layers.Conv2D(filters=nz,
                                       kernel_size=2,
                                       strides=2,
                                       padding='valid'
                                       )#padding='same'
+        '''
+        self.out_conv = layers.Conv2D(filters=nz,
+                                      kernel_size=4,
+                                      padding='valid')
         
         
         self.conv_tr = layers.Conv2D(self.gf,
@@ -157,20 +163,8 @@ class SA_Encoder(tf.keras.layers.Layer):
         d2 = self.down2(d1) #d2 : 8x8,128 
         #print('d2 {}'.format(d2.shape))
         d3 = self.down3(d2) #d3 : 4x4,256
+        last_features = d3
         #print('d3 {}'.format(d3.shape))
-        d4 = self.down4(d3) #d4 : 2x2,512
-        last_features = d4
-        #print('last_features {}'.format(last_features.shape))
-        #print('d4 {}'.format(d4.shape))
-        d5 = self.down5(d4) #d5 : 1x1,512
-        #print('d5 {}'.format(d5.shape))
-        
-        #print('d5 {}'.format(d5.shape))
-        #d6 = self.down6(d5)
-        #d7 = self.down7(d6)
-        x2 = self.conv_tr(x)
-        d0 = self.ca0(x2) * x2
-        _d0 = self.sa0(d0) * d0   #d0 : 32x32
         
         
         USE_ATTENSION = False
@@ -184,13 +178,8 @@ class SA_Encoder(tf.keras.layers.Layer):
             d3 = self.ca3(d3) * d3
             _d3 = self.sa3(d3) * d3 #d3 : 4x4,256
         
-            d4 = self.ca4(d4) * d4
-            _d4 = self.sa4(d4) * d4 #d2 : 2x2,512
-            
-            d5 = self.ca4(d5) * d5
-            _d5 = self.sa4(d5) * d5 #d1 : 1x1,512
-        
-        d = [d1,d2,d3,d4,d5]
+
+        d = [d1,d2,d3]
         #d = [_d1,_d2,_d3,_d4,_d5,_d0]
         #d = [d1,d2,d3,d4,d5]
         out = self.out_conv(last_features)
@@ -217,7 +206,7 @@ class SA_Decoder(tf.keras.layers.Layer):
         
         self.act = layers.ReLU()
         self.bn = layers.BatchNormalization(epsilon=1e-05, momentum=0.9)
-        self.conv_tr = layers.Conv2D(self.gf*8,
+        self.conv_tr = layers.Conv2D(self.gf,
                                   kernel_size=4,
                                   strides=1,
                                   padding='same',
@@ -250,29 +239,20 @@ class SA_Decoder(tf.keras.layers.Layer):
         
         self.tanh = tf.keras.activations.tanh
     def call(self,x,d):
-        # Upsampling
-        x = self.upsample(x) # x:2x2,3
-        x = self.conv_tr(x) # x: 2x2,512
-        #print('x {}'.format(x.shape))
-        #u2 = self.up2(x, None) #u2 : 4x4,512+256
-        u2 = self.up2(x, d[2]) #u2 : 4x4,512+256
-        #print('u2 : {}'.format(u2.shape))
         #Notes d = [_d1,_d2,_d3,_d4,_d5] 
         #index d = [  0,  1,  2,  3, 4]
         #size  d = [ 16, 8,  4,  2, 1]
-        u3 = self.up3(u2, None) # u4:8x8,256+128
-        #u3 = self.up3(u2, d[1]) # u4:8x8,256+128
-        #print('u3 {}'.format(u3.shape))
-        #u4 = self.up4(u3, d[0]) # u4 :16x16,128+64
-        u4 = self.up4(u3, None) # u4 :16x16,128+64
-        #print('u4 {}'.format(u4.shape))
-        u6 = self.up5(u4, None) #u6 : 32x32
-        #u6 = self.up5(u4,d[5]) #u6 : 32x32
-        #u5 = self.upsample(u4) # u5:32x32,192
-        #u6 = self.conv_tr2(u5) # u6:32x32,64
-        #u6 = self.bn(u6)
-        #u6 = self.act(u6)# u6: 32x32,64
-        #print('u6 conv {}'.format(u6.shape))
+        #ch    d = [ 64,128,256,512,512]
+        # Upsampling
+        x = self.upsample(x) # x:2x2,3
+        x = self.conv_tr(x) # x: 2x2,64
+        #x = self.upsample(x) # x:4x4,64
+        #x = self.conv_tr2(x) # x: 4x4,64
+        u3 = self.up3(x,  d[2]) # u3:4x4,256+256
+        u4 = self.up4(u3, d[1]) # u4:8x8,128+128
+        u5 = self.up5(u4, d[0]) # u5:16x16,64+64
+        
+        u6 = self.up6(u5, None) # u6:32x32,64 
         gen_img = self.conv(u6) #gen_img:32x32x3
         #print('gen_img {}'.format(gen_img.shape))
         return gen_img
@@ -382,20 +362,20 @@ class GANRunner:
                 logging.info(
                     '\t Validating: G_losses: {}, D_losses: {}'.format(
                         G_losses, D_losses))
-            if epoch>2:
-                # evaluate on test_dataset
-                if self.test_dataset is not None:
-                    dict_ = self.evaluate(self.test_dataset)
-                    log_str = '\t Testing:'
-                    for k, v in dict_.items():
-                        log_str = log_str + '   {}: {:.4f}'.format(k, v)
-                    state_value = dict_[self.best_state_key]
-                    self.best_state = self.best_state_policy(
-                        self.best_state, state_value)
-                    if self.best_state == state_value:
-                        log_str = '*** ' + log_str + ' ***'
-                        self.save_best()
-                    logging.info(log_str)
+            #if epoch>2:
+            # evaluate on test_dataset
+            if self.test_dataset is not None:
+                dict_ = self.evaluate(self.test_dataset)
+                log_str = '\t Testing:'
+                for k, v in dict_.items():
+                    log_str = log_str + '   {}: {:.4f}'.format(k, v)
+                state_value = dict_[self.best_state_key]
+                self.best_state = self.best_state_policy(
+                    self.best_state, state_value)
+                if self.best_state == state_value:
+                    log_str = '*** ' + log_str + ' ***'
+                    self.save_best()
+                logging.info(log_str)
 
     def save(self, path):
         #self.G.save_weights(self.save_path + 'G')
@@ -953,7 +933,16 @@ class Skip_Attention_GANomaly(GANRunner):
             latent_i, gen_img, latent_o = self.G(x_batch_train)
             latent_i, gen_img, latent_o = latent_i.numpy(), gen_img.numpy(
             ), latent_o.numpy()
-            error = np.mean((latent_i - latent_o)**2, axis=-1)
+            
+            
+            #x_batch_train = tf.reshape(x_batch_train,[64,-1])
+            
+            #gen_img = tf.reshape(gen_img,[64,-1])
+            
+            #rec = (x_batch_train - gen_img).reshape(si[0], si[1] * si[2] * si[3])
+            
+            
+            error = np.mean((latent_i - latent_o)**2, axis=-1) #+ np.mean((x_batch_train - gen_img)**2, axis=1)*0.9
             an_scores.append(error)
             gt_labels.append(y_batch_train)
         an_scores = np.concatenate(an_scores, axis=0).reshape([-1])
