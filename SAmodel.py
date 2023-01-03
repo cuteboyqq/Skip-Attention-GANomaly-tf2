@@ -33,7 +33,7 @@ class UNetDown(tf.keras.layers.Layer):
         self.conv = layers.Conv2D(filters, kernel_size=f_size, strides=2, padding='same')
         self.relu = layers.LeakyReLU(alpha=0.2) #alpha=0.2
         self.normalize = normalize
-        self.norm = layers.BatchNormalization(epsilon=1e-05, momentum=0.9,axis=[-1]) #epsilon=1e-05, momentum=0.9
+        self.norm = layers.BatchNormalization(epsilon=1e-05, momentum=0.99) #epsilon=1e-05, momentum=0.9
     def call(self,x):
         x = self.relu(x)
         x = self.conv(x)
@@ -57,7 +57,7 @@ class UNetUp(tf.keras.layers.Layer):
         self.dropout_rate = dropout_rate
         if dropout_rate:
             self.drop = layers.Dropout(dropout_rate)
-        self.norm = layers.BatchNormalization(epsilon=1e-05, momentum=0.9, axis=[-1]) #epsilon=1e-05, momentum=0.9
+        self.norm = layers.BatchNormalization(epsilon=1e-05, momentum=0.99) #epsilon=1e-05, momentum=0.9
         self.concat = layers.Concatenate()
     def call(self,x,skip_input):
         
@@ -248,7 +248,7 @@ class SA_Decoder(tf.keras.layers.Layer):
         x = self.conv_tr(x) # x: 2x2,64
         #x = self.upsample(x) # x:4x4,64
         #x = self.conv_tr2(x) # x: 4x4,64
-        u3 = self.up3(x,  d[2]) # u3:4x4,256+256
+        u3 = self.up3(x,  None) # u3:4x4,256+256
         u4 = self.up4(u3, d[1]) # u4:8x8,128+128
         u5 = self.up5(u4, d[0]) # u5:16x16,64+64
         
