@@ -14,7 +14,7 @@ from absl import logging
 FLAGS = flags.FLAGS
 flags.DEFINE_integer("shuffle_buffer_size", 10000,
                      "buffer size for pseudo shuffle")
-flags.DEFINE_integer("batch_size", 1, "batch_size")
+flags.DEFINE_integer("batch_size", 64, "batch_size")
 flags.DEFINE_integer("isize", 32, "input size")
 flags.DEFINE_string("ckpt_dir", 'ckpt', "checkpoint folder")
 flags.DEFINE_integer("nz", 100, "latent dims")
@@ -30,11 +30,11 @@ flags.DEFINE_float("w_adv", 1., "Adversarial loss weight")
 flags.DEFINE_float("w_con", 50., "Reconstruction loss weight")
 flags.DEFINE_float("w_enc", 1., "Encoder loss weight")
 flags.DEFINE_float("beta1", 0.5, "beta1 for Adam optimizer")
-flags.DEFINE_string("dataset", r'/home/ali/datasets/factory_data/2022-12-21-4cls-cropimg/images/train', "name of dataset")
+flags.DEFINE_string("dataset", r'/home/ali/datasets/factory_data/2022-12-30-4cls-cropimg/images/train', "name of dataset")
 #flags.DEFINE_string("dataset", 'cifar10', "name of dataset")
-flags.DEFINE_string("dataset_test", r'/home/ali/datasets/factory_data/2022-12-21-4cls-cropimg/images/val', "name of dataset")
-flags.DEFINE_string("dataset_infer", r'/home/ali/datasets/factory_data/2022-12-21-4cls-cropimg/test/crops_line', "name of dataset")
-flags.DEFINE_string("dataset_infer_abnormal", r'/home/ali/datasets/factory_data/2022-12-21-4cls-cropimg/test/crops_noline', "name of dataset")
+flags.DEFINE_string("dataset_test", r'/home/ali/datasets/factory_data/2022-12-30-4cls-cropimg/images/val', "name of dataset")
+flags.DEFINE_string("dataset_infer", r'/home/ali/datasets/factory_data/2022-12-30-4cls-cropimg/crops_line', "name of dataset")
+flags.DEFINE_string("dataset_infer_abnormal", r'/home/ali/datasets/factory_data/2022-12-30-4cls-cropimg/crops_noline', "name of dataset")
 DATASETS = ['mnist', 'cifar10']
 '''
 flags.register_validator('dataset',
@@ -51,14 +51,41 @@ def batch_resize(imgs, size: tuple):
     for i in range(imgs.shape[0]):
         img_out[i] = cv2.resize(imgs[i], size, interpolation=cv2.INTER_CUBIC)
     return img_out
+#https://stackoverflow.com/questions/50346017/how-to-normalize-input-data-for-models-in-tensorflow
+
+def normalize_fixed(x, current_range, normed_range):
+    current_min, current_max = tf.expand_dims(current_range[:, 0], 1), tf.expand_dims(current_range[:, 1], 1)
+    normed_min, normed_max = tf.expand_dims(normed_range[:, 0], 1), tf.expand_dims(normed_range[:, 1], 1)
+    x_normed = (x - current_min) / (current_max - current_min)
+    x_normed = x_normed * (normed_max - normed_min) + normed_min
+    return x_normed
+
+#def parse_example(line_batch, 
+                  #fixed_range=[[-5, 5], [0, 100], ...],
+                  #normed_range=[[0, 1]]):
+    # ...
+    #features = tf.transpose(features)
+    #features = normalize_fixed(features, fixed_range, normed_range)
+
+def normalize_with_moments(x,label,axes=[0, 1], epsilon=1e-8):
+    mean, variance = tf.nn.moments(x, axes=axes)
+    x_normed = (x - mean) / tf.sqrt(variance + epsilon) # epsilon to avoid dividing by zero
+    return x_normed,label
 
 def process(image,label):
     image = tf.cast(image/255. ,tf.float32)
+    #fixed_range = [[],[0, 255], [0, 255], [0, 255]]
+    #normed_range = [[],[0,1],[0,1],[0,1]]
+    #image = normalize_fixed(image, fixed_range, normed_range)
+    #epsilon=1e-8
+    #mean, variance = tf.nn.moments(image, axes=[0, 1])
+    #image_normed = (image - mean) / tf.sqrt(variance + epsilon) # epsilon to avoid dividing by zero
+    
     return image,label
 
 def main(_):
     show_img = True
-    TRAIN = False
+    TRAIN = True
     opt = FLAGS
     # logging
     logging.set_verbosity(logging.INFO)
@@ -227,7 +254,10 @@ def main(_):
                                             train_dataset,
                                             valid_dataset=None,
                                             test_dataset=test_dataset)
+    
+    
     if TRAIN:
+        print(sa_ganomaly)
         # training
         sa_ganomaly.fit(opt.niter)
     
@@ -243,12 +273,12 @@ def main(_):
             loss_normal_list = sa_ganomaly.infer(infer_dataset,SHOW_MAX_NUM,show_img,'normal')
             loss_abnormal_list = sa_ganomaly.infer(infer_dataset_abnormal,SHOW_MAX_NUM,show_img,'abnormal')
         else:    
-            img_dir = r'/home/ali/datasets/factory_data/2022-12-21-4cls-cropimg/test/crops_line/line'
+            img_dir = r'/home/ali/datasets/factory_data/2022-12-30-4cls-cropimg/crops_line/line'
             #print('infer_dataset : {}'.format(opt.dataset_infer))
             normal_name =  str(opt.isize) + 'nz' + str(opt.nz) + '-' + str(SHOW_MAX_NUM) + '-opencv-normal' + '-ndf' + str(opt.ndf) + '-ngf' + str(opt.ngf)
             loss_normal_list = sa_ganomaly.infer_python(img_dir,SHOW_MAX_NUM,save_image=True,name=normal_name,isize=opt.isize)
             
-            img_dir = r'/home/ali/datasets/factory_data/2022-12-21-4cls-cropimg/test/crops_noline/noline'
+            img_dir = r'/home/ali/datasets/factory_data/2022-12-30-4cls-cropimg/crops_noline/noline'
             #print('infer_dataset_abnormal : {}'.format(opt.dataset_infer_abnormal))
             abnormal_name =  str(opt.isize) + 'nz' + str(opt.nz) + '-' + str(SHOW_MAX_NUM) + '-opencv-abnormal' + '-ndf' + str(opt.ndf) + '-ngf' + str(opt.ngf)
             loss_abnormal_list = sa_ganomaly.infer_python(img_dir,SHOW_MAX_NUM,save_image=True,name=abnormal_name,isize=opt.isize)

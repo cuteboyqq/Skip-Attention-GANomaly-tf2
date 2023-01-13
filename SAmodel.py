@@ -27,22 +27,26 @@ from tensorflow.keras import layers, Sequential, regularizers
 
 #============================================================================================
 class UNetDown(tf.keras.layers.Layer):
-    def __init__(self, filters, f_size=4, normalize=True):
+    def __init__(self, filters, f_size=4, normalize=True, dropout_rate=0.0):
         super(UNetDown, self).__init__()
         """Layers used during downsampling"""
         self.conv = layers.Conv2D(filters, kernel_size=f_size, strides=2, padding='same')
-        self.relu = layers.LeakyReLU(alpha=0.2) #alpha=0.2
+        self.leakyrelu = layers.LeakyReLU(alpha=0.2) #alpha=0.2
         self.normalize = normalize
-        self.norm = layers.BatchNormalization(epsilon=1e-05, momentum=0.99,axis=[1,2]) #epsilon=1e-05, momentum=0.9
+        self.norm = layers.BatchNormalization(epsilon=1e-05, momentum=0.9) #epsilon=1e-05, momentum=0.9 axis=[1,2]
+        self.dropout_rate = dropout_rate
+        if dropout_rate:
+            self.drop = layers.Dropout(dropout_rate)
     def call(self,x):
-        x = self.relu(x)
+        x = self.leakyrelu(x)
         x = self.conv(x)
         x = self.norm(x) if self.normalize else x
+        x = self.drop(x) if self.dropout_rate else x
         return x
 
         
 class UNetUp(tf.keras.layers.Layer):
-    def __init__(self, out_size, dropout_rate=0):
+    def __init__(self, out_size, dropout_rate=0,padding='same'):
         super(UNetUp, self).__init__()
         """Layers used during upsampling"""
         self.upconv = layers.Conv2DTranspose(out_size, 4, 2, padding='same')
@@ -50,25 +54,31 @@ class UNetUp(tf.keras.layers.Layer):
         self.conv_tr = layers.Conv2D(out_size,
                                   kernel_size=4,
                                   strides=1,
-                                  padding='same',
+                                  padding=padding,
                                   use_bias=False)
         #self.conv = layers.Conv2D(filters, kernel_size=f_size, strides=1, padding='same', activation='relu')
         self.relu = layers.ReLU()#alpha=0.2
         self.dropout_rate = dropout_rate
         if dropout_rate:
             self.drop = layers.Dropout(dropout_rate)
-        self.norm = layers.BatchNormalization(epsilon=1e-05, momentum=0.99,axis=[1,2]) #epsilon=1e-05, momentum=0.9
-        self.concat = layers.Concatenate()
+        self.norm = layers.BatchNormalization(epsilon=1e-05, momentum=0.9) #epsilon=1e-05, momentum=0.9,axis=[1,2]
+        self.concat = layers.Concatenate(axis=-1)
     def call(self,x,skip_input):
         
         #print('relu {}'.format(x.shape))
         #print('x {}'.format(x.shape))
+        
+        
+        #x = self.upconv(x)
         x = self.upsample(x)
         x = self.conv_tr(x)
         #print('upconv {}'.format(x.shape))
         x = self.norm(x)
-        #print('norm {}'.format(x.shape))
         x = self.relu(x)
+        #print('norm {}'.format(x.shape))
+        
+        
+        
         #x = self.conv(x)
         x = self.drop(x) if self.dropout_rate else x
         
@@ -125,9 +135,9 @@ class SA_Encoder(tf.keras.layers.Layer):
                                   padding='same',
                                   use_bias=False)
         
-        self.down1 = UNetDown(self.gf*1, normalize=False)#64
-        self.down2 = UNetDown(self.gf*2)#128
-        self.down3 = UNetDown(self.gf*4)#256
+        self.down1 = UNetDown(self.gf*1, normalize=False,dropout_rate=0.0)#64
+        self.down2 = UNetDown(self.gf*2,dropout_rate=0.0)#128
+        self.down3 = UNetDown(self.gf*4,dropout_rate=0.0)#256
         self.down4 = UNetDown(self.gf*8)#512
         self.down5 = UNetDown(self.gf*8)#512
         #self.down6 = UNetDown(self.gf*8)
@@ -212,7 +222,7 @@ class SA_Decoder(tf.keras.layers.Layer):
                                   padding='same',
                                   use_bias=False)
         
-        self.conv_tr2 = layers.Conv2D(self.gf,
+        self.conv_tr2 = layers.Conv2D(self.gf*4,
                                   kernel_size=4,
                                   strides=1,
                                   padding='same',
@@ -230,11 +240,11 @@ class SA_Decoder(tf.keras.layers.Layer):
                             padding='same', activation='tanh', use_bias=False)
         
         #self.up1 = UNetUp(self.gf*8)
-        #self.up1 = UNetUp(self.gf*8)
-        self.up2 = UNetUp(self.gf*8) #512
-        self.up3 = UNetUp(self.gf*4) #256
-        self.up4 = UNetUp(self.gf*2) #128
-        self.up5 = UNetUp(self.gf) #64
+        self.up1 = UNetUp(self.gf)
+        self.up2 = UNetUp(self.gf*4,padding='same') #256
+        self.up3 = UNetUp(self.gf*4,dropout_rate=0.0,padding='same') #256
+        self.up4 = UNetUp(self.gf*2,dropout_rate=0.0) #128
+        self.up5 = UNetUp(self.gf*1,dropout_rate=0.0) #64
         self.up6 = UNetUp(self.gf) #64
         
         self.tanh = tf.keras.activations.tanh
@@ -244,15 +254,16 @@ class SA_Decoder(tf.keras.layers.Layer):
         #size  d = [ 16, 8,  4,  2, 1]
         #ch    d = [ 64,128,256,512,512]
         # Upsampling
-        x = self.upsample(x) # x:2x2,3
-        x = self.conv_tr(x) # x: 2x2,64
-        #x = self.upsample(x) # x:4x4,64
-        #x = self.conv_tr2(x) # x: 4x4,64
-        u3 = self.up3(x,  None) # u3:4x4,256+256
-        u4 = self.up4(u3, d[1]) # u4:8x8,128+128
-        u5 = self.up5(u4, d[0]) # u5:16x16,64+64
-        
-        u6 = self.up6(u5, None) # u6:32x32,64 
+        #print("x:{}".format(x.shape))
+        u2 = self.up2(x, None) # u2:2x2,256
+        #print("u2:{}".format(u2.shape))
+        u3 = self.up3(u2,None) # u3:4x4,256
+        #print("u3:{}".format(u3.shape))
+        u4 = self.up4(u3, d[1]) # u4:8x8,128+128 d[1]
+        #print("u4:{}".format(u4.shape))
+        u5 = self.up5(u4, d[0]) # u5:16x16,64+64 d[0]
+        #print("u5:{}".format(u5.shape))
+        u6 = self.upsample(u5) #u6:32x32,128
         gen_img = self.conv(u6) #gen_img:32x32x3
         #print('gen_img {}'.format(gen_img.shape))
         return gen_img
@@ -473,6 +484,12 @@ class Skip_Attention_GANomaly(GANRunner):
         return abnormal
         
     def infer(self, test_dataset,SHOW_MAX_NUM,show_img,data_type):
+        
+        def normalize_with_moments(x,axes=[0, 1], epsilon=1e-8):
+            mean, variance = tf.nn.moments(x, axes=axes)
+            x_normed = (x - mean) / tf.sqrt(variance + epsilon) # epsilon to avoid dividing by zero
+            return x_normed
+        
         show_num = 0
         self.load_best()
         
@@ -486,7 +503,11 @@ class Skip_Attention_GANomaly(GANRunner):
             images, labels = dataiter.next()
             #latent_i, fake_img, latent_o = self.G(images)
             self.input = images
-            
+            epsilon=1e-8
+            #print('mean , var norm')
+            #mean, variance = tf.nn.moments(self.input, axes=[0,1])
+            #self.input = (self.input - mean) / tf.sqrt(variance + epsilon) # epsilon to avoid dividing by zero
+            #print('done')
             self.latent_i, self.gen_img, self.latent_o = self.G(self.input)
             self.pred_real, self.feat_real = self.D(self.input)
             self.pred_fake, self.feat_fake = self.D(self.gen_img)
@@ -659,9 +680,12 @@ class Skip_Attention_GANomaly(GANRunner):
             
             #tf.convert_to_tensor(image)
             #image = tf.convert_to_tensor(image)
-            #mean, variance = tf.nn.moments(image, axes=axes)
-            #x_normed = (image - mean) / tf.sqrt(variance + epsilon) # epsilon to avoid dividing by zero
-            
+            #mean, variance = tf.nn.moments(image, axes=[0,1])
+            #epsilon=1e-8
+            #print('normalize mean var')
+            #image = (image - mean) / tf.sqrt(variance + epsilon) # epsilon to avoid dividing by zero
+            #image =image.numpy()
+            #print('done')
             #tf.expand_dims(image,axis=0)
             image = image[np.newaxis, ...].astype(np.float32)
             if cnt<=SHOW_MAX_NUM:
@@ -1020,10 +1044,10 @@ class Skip_Attention_GANomaly(GANRunner):
         self.err_g_adv = self.l_adv(self.feat_real, self.feat_fake)
         self.err_g_con = self.l_con(self.input, self.gen_img)
         self.err_g_enc = self.l_enc(self.latent_i, self.latent_o)
-        g_loss= self.err_g_adv * self.opt.w_adv + \
+        g_loss = self.err_g_adv * self.opt.w_adv + \
                 self.err_g_con * self.opt.w_con + \
                 self.err_g_enc * self.opt.w_enc
-        return g_loss, self.err_g_adv * self.opt.w_adv, self.err_g_con * self.opt.w_con, self.err_g_enc * self.opt.w_enc
+        return g_loss, self.err_g_adv * self.opt.w_adv , self.err_g_con * self.opt.w_con, self.err_g_enc * self.opt.w_enc
     
     def d_loss(self):
         self.err_d_real = self.l_bce(self.pred_real, self.real_label)
